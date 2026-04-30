@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- dark background -->
+  <rect width="512" height="512" rx="112" fill="#060810"/>
+
+  <!-- orbit rings -->
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#1a3a5a" stroke-width="2.5"/>
+  <circle cx="256" cy="256" r="114" fill="none" stroke="#1a3a5a" stroke-width="2.5"/>
+  <circle cx="256" cy="256" r="64" fill="none" stroke="#2a4a6a" stroke-width="2.5"/>
+
+  <!-- sun -->
+  <defs>
+    <radialGradient id="sg" cx="38%" cy="34%" r="65%">
+      <stop offset="0%" stop-color="#fff8e0"/>
+      <stop offset="40%" stop-color="#ffcc55"/>
+      <stop offset="100%" stop-color="#ff8820"/>
+    </radialGradient>
+    <radialGradient id="p1" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#aaeeff"/>
+      <stop offset="50%" stop-color="#3399ff"/>
+      <stop offset="100%" stop-color="#0a2a6e"/>
+    </radialGradient>
+    <radialGradient id="p2" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#ccffdd"/>
+      <stop offset="50%" stop-color="#22cc88"/>
+      <stop offset="100%" stop-color="#0a4a2a"/>
+    </radialGradient>
+    <radialGradient id="p3" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="#f0d0ff"/>
+      <stop offset="50%" stop-color="#cc44ff"/>
+      <stop offset="100%" stop-color="#2a0a4a"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="34" fill="url(#sg)"/>
+
+  <!-- planet 1 — blue, inner ring top -->
+  <circle cx="256" cy="192" r="16" fill="url(#p1)"/>
+  <!-- planet 2 — green, mid ring -->
+  <circle cx="340" cy="170" r="22" fill="url(#p2)"/>
+  <!-- planet 3 — purple, outer ring -->
+  <circle cx="142" cy="112" r="16" fill="url(#p3)"/>
+</svg>

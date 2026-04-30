@@ -18,6 +18,43 @@ canvas{display:block;position:fixed;top:0;left:0}
 
 
 </style>
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCqMxJV7_hh8AHaSuYUi7QR16apt0QhPiE",
+      authDomain: "orbit-23921.firebaseapp.com",
+      projectId: "orbit-23921",
+      storageBucket: "orbit-23921.firebasestorage.app",
+      messagingSenderId: "680718517274",
+      appId: "1:680718517274:web:103918e8727a348c837da3",
+      measurementId: "G-6VBNF6YDJZ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+
+    // expose to game
+    window._fbAnalytics = analytics;
+    window._fbLogEvent = logEvent;
+    window._fbDb = db;
+    window._fbCollection = collection;
+    window._fbAddDoc = addDoc;
+    window._fbQuery = query;
+    window._fbOrderBy = orderBy;
+    window._fbLimit = limit;
+    window._fbGetDocs = getDocs;
+    window._fbServerTimestamp = serverTimestamp;
+    window._fbReady = true;
+
+    // log page view
+    logEvent(analytics, 'page_view', { page_title: 'ORBit' });
+  </script>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -87,16 +124,16 @@ canvas{display:block;position:fixed;top:0;left:0}
     </svg>
     <div style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
     <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:28px;">gravity sandbox</div>
-    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep planets orbiting the sun. More orbs = faster points. But the sun is hungry — and every planet it eats costs <em>more</em> than the last.</p>
+    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep orbs orbiting the sun. More orbs = faster points. But the sun is hungry — and every orb it eats costs <em>more</em> than the last.</p>
     <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:32px;">
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> at the bottom — aim, release, repeat</span>
+        <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> at the bottom to fire an orb — aim, release, repeat</span>
       </div>
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
         <span style="font-size:20px;width:28px;text-align:center;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to create a gravity well — hold to attract, flick to sling</span>
       </div>
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">☀️</span><span><strong style="color:rgba(255,80,80,0.9);">The sun is the enemy</strong> — the more it eats, the worse it gets</span>
+        <span style="font-size:20px;width:28px;text-align:center;">☀️</span><span><strong style="color:rgba(255,80,80,0.9);">The sun is the enemy</strong> — every orb it eats costs more than the last</span>
       </div>
     </div>
     <button onclick="startGame()" style="display:block;width:100%;padding:16px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:14px;color:white;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.5px;">Start ORBit</button>
@@ -160,13 +197,13 @@ canvas{display:block;position:fixed;top:0;left:0}
   </div>
   <!-- HOW TO PLAY TAB -->
   <div id="tab-howto" class="tab-content">
-    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch planets and keep them orbiting a sun. Planets launched at the right speed settle into stable orbits. Too fast and they fly away. Too slow and the sun swallows them. Everything follows one rule: mass attracts mass.</p>
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch orbs and keep them orbiting a sun. Orbs launched at the right speed settle into stable orbits. Too fast and they fly away. Too slow and the sun swallows them. Everything follows one rule: mass attracts mass.</p>
     <div class="how-section">
       <h3>Controls</h3>
-      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launch planets</h4><p>Pull back on the launcher at the bottom. Angle left or right across 180°. Harder pull = faster launch.</p></div></div>
-      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby planets are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
-      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
-      <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> = stable orbit. Colors shift through green → yellow → orange → <span style="color:#ff4444;">red</span> as orbits decay. Nudge red planets to save them.</p></div></div>
+      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launch orbs</h4><p>Pull back on the launcher at the bottom. Angle left or right across 180°. Harder pull = faster launch.</p></div></div>
+      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby orbs are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
+      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Orbs that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> = stable orbit. Colors shift through green → yellow → orange → <span style="color:#ff4444;">red</span> as orbits decay. Nudge red orbs to save them.</p></div></div>
     </div>
     <div class="how-section">
       <h3>Scoring</h3>
@@ -176,25 +213,30 @@ canvas{display:block;position:fixed;top:0;left:0}
         <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum orbs to start scoring</div></div>
         <div class="score-pill"><div class="val" style="color:#ff5555;">−5×n</div><div class="lbl">each eaten orb costs more</div></div>
       </div>
-      <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:10px;line-height:1.6;">The sun penalty escalates: 1st planet eaten = −5, 2nd = −10, 3rd = −15. Watch the ☀ tracker in the corner.</p>
+      <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:10px;line-height:1.6;">The sun penalty escalates: 1st orb eaten = −5, 2nd = −10, 3rd = −15. Watch the ☀ tracker in the corner.</p>
     </div>
     <div class="how-section">
       <h3>Tips</h3>
       <div class="tip-row"><div class="tip-dot"></div><span>Watch the trajectory line before releasing — it curves toward the sun's gravity.</span></div>
       <div class="tip-row"><div class="tip-dot"></div><span>Launch sideways to create elliptical orbits that cross the screen.</span></div>
       <div class="tip-row"><div class="tip-dot"></div><span>Moving the sun reshapes every orbit at once.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>A gentle perpendicular nudge with the gravity well can rescue a red planet without sending it flying.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>A gentle perpendicular nudge with the gravity well can rescue a red orb without sending it flying.</span></div>
       <div class="tip-row"><div class="tip-dot"></div><span>The launcher cooldown grows with orb count — you can't spam your way to a high score.</span></div>
     </div>
   </div>
   <!-- SCORES TAB -->
   <div id="tab-scores" class="tab-content">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:12px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.2);">local scores</div>
-      <button onclick="clearScores()" style="background:none;border:none;color:rgba(255,255,255,0.18);font-size:11px;font-family:inherit;cursor:pointer;padding:2px 6px;">clear all</button>
+    <!-- toggle -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button id="lb-global-btn" onclick="switchBoard('global')" style="flex:1;padding:8px;background:rgba(100,200,255,0.12);border:1px solid rgba(100,200,255,0.3);border-radius:8px;color:rgba(100,200,255,0.9);font-size:12px;font-family:inherit;cursor:pointer;letter-spacing:1px;">🌍 Global</button>
+      <button id="lb-local-btn" onclick="switchBoard('local')" style="flex:1;padding:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:rgba(255,255,255,0.35);font-size:12px;font-family:inherit;cursor:pointer;letter-spacing:1px;">📱 Mine</button>
     </div>
+    <div id="lb-status" style="font-size:11px;color:rgba(255,255,255,0.2);text-align:center;margin-bottom:10px;min-height:16px;"></div>
     <div id="leaderboard-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-    <div id="leaderboard-empty" style="text-align:center;padding:32px 0;font-size:13px;color:rgba(255,255,255,0.2);">no scores yet</div>
+    <div id="leaderboard-empty" style="display:none;text-align:center;padding:32px 0;font-size:13px;color:rgba(255,255,255,0.2);">no scores yet</div>
+    <div id="lb-local-footer" style="display:none;text-align:right;margin-top:12px;">
+      <button onclick="clearScores()" style="background:none;border:none;color:rgba(255,255,255,0.15);font-size:11px;font-family:inherit;cursor:pointer;">clear my scores</button>
+    </div>
   </div>
   <!-- INSTALL TAB -->
   <div id="tab-install" class="tab-content">
@@ -642,7 +684,7 @@ function launchPlanet(){
   var lp=getLaunchParams();
   if(lp.pullDist<15)return;
   var r=launcher.nextR;
-  orbs.push(makeOrb(launcher.x,launcher.y,lp.vx,lp.vy,r,false,launcher.nextPT));
+  orbs.push(makeOrb(launcher.x,launcher.y,lp.vx,lp.vy,r,false,launcher.nextPT));_orbsLaunched++;
   disturb(launcher.x,launcher.y,2+lp.power*2);
   var cd=Math.min(12000,2000+(Math.max(0,liveOrbCount()-3)*1000));
 launcher.cooldown=cd;launcher.maxCooldown=cd;
@@ -680,7 +722,7 @@ if(o.suctioning){
   o.r=o.baseR*Math.max(0,1-st*st); // shrink
   if(o.suctionT>=1||Math.sqrt((o.x-sun.x)**2+(o.y-sun.y)**2)<2){
     o.dead=true;o.respawnTimer=0;
-    orbsEaten++;
+    orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:orbsEaten*5,score:score});
     var eatPenalty=orbsEaten*5;
     score-=eatPenalty;scorePenalty=1;
     penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:eatPenalty});
@@ -740,7 +782,7 @@ function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.
 canvas.addEventListener("touchstart",onD,{passive:false});canvas.addEventListener("touchmove",onM,{passive:false});canvas.addEventListener("touchend",onU,{passive:false});
 canvas.addEventListener("mousedown",onD,false);canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);canvas.addEventListener("mouseup",onU,false);
 
-function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0){initStars();initNebula();initGalaxies();}launcher.x=W/2;launcher.y=H-120;if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
+function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0){initStars();initNebula();initGalaxies();}launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){
@@ -1117,39 +1159,95 @@ function runLoadingBar(){
 }
 runLoadingBar();
 
+/* === ANALYTICS HELPERS === */
+var _sessionStart=Date.now();
+var _orbsLaunched=0;
+function fbLog(name,params){
+  try{if(window._fbReady&&window._fbLogEvent)window._fbLogEvent(window._fbAnalytics,name,params||{});}catch(e){}
+}
+
 /* === LEADERBOARD === */
 var SCORE_KEY='orbit_scores_v1';
 var NAME_KEY='orbit_last_name';
+var _currentBoard='global'; // 'global' or 'local'
 
-function getScores(){
-  try{return JSON.parse(localStorage.getItem(SCORE_KEY)||'[]');}catch(e){return[];}
-}
-function saveScores(arr){
-  try{localStorage.setItem(SCORE_KEY,JSON.stringify(arr));}catch(e){}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function getLocalScores(){try{return JSON.parse(localStorage.getItem(SCORE_KEY)||'[]');}catch(e){return[];}}
+function saveLocalScores(arr){try{localStorage.setItem(SCORE_KEY,JSON.stringify(arr));}catch(e){}}
+
+function switchBoard(which){
+  _currentBoard=which;
+  var gb=document.getElementById('lb-global-btn');
+  var lb=document.getElementById('lb-local-btn');
+  var lf=document.getElementById('lb-local-footer');
+  if(gb&&lb){
+    gb.style.background=which==='global'?'rgba(100,200,255,0.12)':'rgba(255,255,255,0.04)';
+    gb.style.borderColor=which==='global'?'rgba(100,200,255,0.3)':'rgba(255,255,255,0.08)';
+    gb.style.color=which==='global'?'rgba(100,200,255,0.9)':'rgba(255,255,255,0.35)';
+    lb.style.background=which==='local'?'rgba(100,200,255,0.12)':'rgba(255,255,255,0.04)';
+    lb.style.borderColor=which==='local'?'rgba(100,200,255,0.3)':'rgba(255,255,255,0.08)';
+    lb.style.color=which==='local'?'rgba(100,200,255,0.9)':'rgba(255,255,255,0.35)';
+  }
+  if(lf)lf.style.display=which==='local'?'block':'none';
+  renderLeaderboard();
 }
 
-function renderLeaderboard(){
+function renderScoreRows(scores){
   var list=document.getElementById('leaderboard-list');
   var empty=document.getElementById('leaderboard-empty');
   if(!list||!empty)return;
-  var scores=getScores();
-  if(scores.length===0){list.style.display='none';empty.style.display='block';return;}
+  if(!scores||scores.length===0){
+    list.innerHTML='';list.style.display='none';empty.style.display='block';return;
+  }
   empty.style.display='none';list.style.display='flex';
   list.innerHTML=scores.map(function(s,i){
-    var medal=['🥇','🥈','🥉'][i]||(i+1)+'.';
-    var col=s.score<0?'rgba(255,100,80,0.8)':'rgba(255,255,255,0.85)';
+    var medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'<span style="font-size:12px;color:rgba(255,255,255,0.3);">'+(i+1)+'</span>';
+    var col=s.score<0?'rgba(255,100,80,0.85)':'rgba(255,255,255,0.88)';
+    var date=s.date?'<div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:1px;">'+escHtml(s.date)+'</div>':'';
     return '<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;">'
       +'<div style="font-size:16px;width:24px;text-align:center;">'+medal+'</div>'
-      +'<div style="flex:1;font-size:14px;font-weight:600;color:rgba(255,255,255,0.75);">'+escHtml(s.name)+'</div>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.78);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtml(s.name)+'</div>'+date+'</div>'
       +'<div style="font-size:18px;font-weight:700;font-family:monospace;color:'+col+';">'+s.score+'</div>'
       +'</div>';
   }).join('');
 }
 
-function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function setLbStatus(msg){var el=document.getElementById('lb-status');if(el)el.textContent=msg;}
+
+async function renderLeaderboard(){
+  if(_currentBoard==='local'){
+    renderScoreRows(getLocalScores());
+    setLbStatus('scores on this device');
+    return;
+  }
+  // global
+  setLbStatus('loading...');
+  document.getElementById('leaderboard-list').innerHTML='';
+  document.getElementById('leaderboard-empty').style.display='none';
+  try{
+    if(!window._fbReady)throw new Error('Firebase not ready');
+    var q=window._fbQuery(
+      window._fbCollection(window._fbDb,'scores'),
+      window._fbOrderBy('score','desc'),
+      window._fbLimit(20)
+    );
+    var snap=await window._fbGetDocs(q);
+    var scores=[];
+    snap.forEach(function(doc){
+      var d=doc.data();
+      scores.push({name:d.name,score:d.score,date:d.date||''});
+    });
+    renderScoreRows(scores);
+    setLbStatus(scores.length+' players worldwide');
+  }catch(err){
+    setLbStatus('offline — showing local scores');
+    renderScoreRows(getLocalScores());
+  }
+}
 
 function clearScores(){
-  if(confirm('Clear all scores?')){saveScores([]);renderLeaderboard();}}
+  if(confirm('Clear your local scores?')){saveLocalScores([]);renderLeaderboard();}
+}
 
 /* === END GAME FLOW === */
 function endGame(){
@@ -1159,20 +1257,32 @@ function endGame(){
   overlay.style.display='flex';
   document.getElementById('endgame-score').textContent=score;
   document.getElementById('endgame-score').style.color=score<0?'rgba(255,100,80,0.9)':'white';
-  // prefill last used name
   var lastName=localStorage.getItem(NAME_KEY)||'';
   document.getElementById('name-input').value=lastName;
-  document.getElementById('name-input').focus();
+  setTimeout(function(){document.getElementById('name-input').focus();},100);
+  // analytics
+  var sessionSec=Math.round((Date.now()-_sessionStart)/1000);
+  fbLog('game_end',{score:score,orbs_eaten:orbsEaten,orbs_launched:_orbsLaunched,session_seconds:sessionSec});
 }
 
-function saveScore(){
+async function saveScore(){
   var name=document.getElementById('name-input').value.trim()||'Anonymous';
   localStorage.setItem(NAME_KEY,name);
-  var scores=getScores();
-  scores.push({name:name,score:score,date:new Date().toLocaleDateString()});
-  scores.sort(function(a,b){return b.score-a.score;});
-  scores=scores.slice(0,20); // keep top 20
-  saveScores(scores);
+  var dateStr=new Date().toLocaleDateString();
+  // save locally
+  var localScores=getLocalScores();
+  localScores.push({name:name,score:score,date:dateStr});
+  localScores.sort(function(a,b){return b.score-a.score;});
+  saveLocalScores(localScores.slice(0,20));
+  // save to Firebase
+  try{
+    if(window._fbReady){
+      await window._fbAddDoc(window._fbCollection(window._fbDb,'scores'),{
+        name:name,score:score,date:dateStr,
+        ts:window._fbServerTimestamp()
+      });
+    }
+  }catch(err){console.warn('Score save failed:',err);}
   document.getElementById('endgame-overlay').style.display='none';
   resetGame();
 }
@@ -1193,6 +1303,8 @@ function resumeGame(){
 }
 function resetGame(){
   paused=false;
+  fbLog('game_reset',{score:score});
+  _orbsLaunched=0;
   document.getElementById('menu-overlay').style.display='none';
   score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];orbsEaten=0;
   orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
@@ -1208,6 +1320,8 @@ function resetGame(){
 function startGame(){
   document.getElementById('intro-overlay').style.display='none';
   paused=false;lastT=0;
+  _sessionStart=Date.now();
+  fbLog('game_start',{});
 }
 
 /* === LAUNCHER IDLE HINT === */
@@ -1280,6 +1394,7 @@ window.endGame=endGame;
 window.saveScore=saveScore;
 window.skipSave=skipSave;
 window.clearScores=clearScores;
+window.switchBoard=switchBoard;
 })();
 </script>
 </body>

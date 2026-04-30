@@ -318,7 +318,8 @@ var rings=[];function addRing(x,y,s){rings.push({x:x,y:y,rad:0,mx:55+s*75,life:1
 var dragN=0;
 function gXY(e){var t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY}}
 function inLZ(p){return Math.sqrt((p.x-launcher.x)**2+(p.y-launcher.y)**2)<LAUNCH_ZONE_R&&launcher.cooldown<=0;}
-function onD(e){e.preventDefault();var p=gXY(e);if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}else{puck.active=true;puck.x=p.x;puck.y=p.y;puck.px=p.x;puck.py=p.y;disturb(p.x,p.y,1.8);addRing(p.x,p.y,0.6);}}
+function inLogoZone(p){return p.x>W-150&&p.y<48;}
+function onD(e){e.preventDefault();var p=gXY(e);if(inLogoZone(p)){window.location.href="info.html";return;}if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}else{puck.active=true;puck.x=p.x;puck.y=p.y;puck.px=p.x;puck.py=p.y;disturb(p.x,p.y,1.8);addRing(p.x,p.y,0.6);}}
 function onM(e){e.preventDefault();var p=gXY(e);if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!puck.active)return;puck.px=puck.x;puck.py=puck.y;puck.x=p.x;puck.y=p.y;var spd=Math.sqrt((puck.x-puck.px)**2+(puck.y-puck.py)**2);disturb(puck.x,puck.y,0.3+spd*0.015);dragN++;if(dragN%12===0)addRing(puck.x,puck.y,0.08+spd*0.005);}
 function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(puck.active){disturb(puck.x,puck.y,1.2);addRing(puck.x,puck.y,0.4);}puck.active=false;dragN=0;}
 canvas.addEventListener("touchstart",onD,{passive:false});canvas.addEventListener("touchmove",onM,{passive:false});canvas.addEventListener("touchend",onU,{passive:false});

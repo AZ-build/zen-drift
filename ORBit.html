@@ -1046,14 +1046,16 @@ function drawScore(t){
     ctx.restore();
   }
 
-  // --- +n POP ANIMATION ---
+  // --- +net POP ANIMATION (floats up from score number) ---
   if(scorePop>0){
     scorePopY+=0.04;
     var popAlpha=Math.max(0,1-scorePopY*0.7);
-    ctx.font="bold 14px system-ui,sans-serif";
+    ctx.font="bold 13px system-ui,sans-serif";
     ctx.fillStyle="rgba(100,220,255,"+popAlpha+")";
     ctx.textBaseline="middle";
-    ctx.fillText("+"+scorePop,px+ctx.measureText(scoreStr).width+8,py+14-scorePopY*18);
+    ctx.textAlign="left";
+    // show net value (stable minus unstable)
+    ctx.fillText("+"+scorePop,px,py-2-scorePopY*22);
     if(popAlpha<=0){scorePop=0;scorePopY=0;}
   }
 
@@ -1077,102 +1079,87 @@ function drawScore(t){
     ctx.beginPath();ctx.roundRect(barX,barY,barW,barH,2);ctx.fill();
   }
 
-  // "+n" label at right end of bar — gamified multiplier
+  // stacked multiplier — right of bar, centred vertically
   ctx.textBaseline="middle";
-  var labelY=barY+barH/2;
+  var multX=barX+barW+8;
+  var unstable=n-ns;
+  var ROW_H=13; // fixed row height
+  var ICON_R=4; // fixed icon radius — no size animation
+
   if(isWaiting){
     ctx.font="11px system-ui,sans-serif";
     ctx.fillStyle="rgba(255,200,80,0.45)";
-    ctx.fillText("+"+(3-n)+" more",barX+barW+8,labelY);
+    ctx.fillText("+"+(3-n)+" more",multX,barY+barH/2);
   } else {
-    // Extended color ramp: blue→teal→green→gold→orange→red→magenta→rainbow cycle
-    var tiers=[
-      [100,200,255], // 3  — blue
-      [60,220,200],  // 6  — teal
-      [80,220,100],  // 9  — green
-      [255,210,60],  // 12 — gold
-      [255,140,40],  // 15 — orange
-      [255,60,80],   // 20 — red/hot
-      [220,60,255],  // 25 — magenta
-      [100,140,255], // 30 — electric blue
-    ];
-    // above 30 it cycles through rainbow using hue rotation
-    var rainbowMode=n>=30;
+    // color ramp for stable count
+    var tiers=[[100,200,255],[60,220,200],[80,220,100],[255,210,60],[255,140,40],[255,60,80],[220,60,255],[100,140,255]];
+    var rainbowMode=ns>=30;
     var mc;
     if(rainbowMode){
-      // full hue cycle — faster above 50
-      var hueSpd=n>=50?0.003:0.0015;
-      var hue=(t*hueSpd)%360;
-      var hr=Math.sin(hue*Math.PI/180)*127+128;
-      var hg=Math.sin((hue+120)*Math.PI/180)*127+128;
-      var hb=Math.sin((hue+240)*Math.PI/180)*127+128;
-      mc=[hr,hg,hb];
+      var hueSpd=ns>=50?0.003:0.0015;var hue=(t*hueSpd)%360;
+      mc=[Math.sin(hue*Math.PI/180)*127+128,Math.sin((hue+120)*Math.PI/180)*127+128,Math.sin((hue+240)*Math.PI/180)*127+128];
     } else {
-      var stepsPerTier=3; // every 3 orbs = one tier
-      var tierIdx=Math.min(tiers.length-2,Math.floor((n-3)/stepsPerTier));
-      var tierFrac=((n-3)/stepsPerTier)-Math.floor((n-3)/stepsPerTier);
+      var stepsPerTier=3;
+      var tierIdx=Math.min(tiers.length-2,Math.floor((Math.max(0,ns-3))/stepsPerTier));
+      var tierFrac=((Math.max(0,ns-3))/stepsPerTier)-Math.floor((Math.max(0,ns-3))/stepsPerTier);
       var c1=tiers[tierIdx],c2=tiers[Math.min(tiers.length-1,tierIdx+1)];
       mc=[c1[0]+(c2[0]-c1[0])*tierFrac,c1[1]+(c2[1]-c1[1])*tierFrac,c1[2]+(c2[2]-c1[2])*tierFrac];
     }
-
-    // pulse: faster and wilder at high counts
-    // n<10: gentle, n=20: bouncy, n=50+: frantic
-    var pulseSpd=0.002+Math.min(0.015,n*0.0004);
-    var pulseMag=Math.min(0.6,0.05+n*0.012);
+    // pulse only affects COLOR alpha and glow — not size or position
+    var pulseSpd=0.002+Math.min(0.012,ns*0.0004);
+    var pulseMag=Math.min(0.4,0.05+ns*0.01);
     var pulse=1+Math.sin(t*pulseSpd)*pulseMag;
-    // at very high counts add a second wobble for chaos
-    if(n>=20){pulse+=Math.sin(t*pulseSpd*2.3+1.2)*(pulseMag*0.4);}
-    if(n>=40){pulse+=Math.sin(t*pulseSpd*3.7+2.5)*(pulseMag*0.25);}
-    pulse=Math.max(0.3,pulse); // clamp so it never goes negative
+    if(ns>=20)pulse+=Math.sin(t*pulseSpd*2.3+1.2)*(pulseMag*0.3);
+    if(ns>=40)pulse+=Math.sin(t*pulseSpd*3.7+2.5)*(pulseMag*0.2);
+    pulse=Math.max(0.3,pulse);
+    var baseAlpha=Math.min(1.0,0.5+ns*0.025);
 
-    var baseAlpha=Math.min(1.0,0.45+n*0.025);
+    // vertical centering: if red row exists, shift blue up by half row height
+    var totalRows=unstable>0?2:1;
+    var blockH=(totalRows-1)*ROW_H;
+    var barMid=barY+barH/2;
+    var rowAy=barMid-blockH/2;
+    var rowBy=rowAy+ROW_H;
 
-    // font grows with count, caps at 22px
-    var fontSize=Math.min(22,11+n*0.22);
+    // font scales with count but stays modest
+    var fontSize=Math.min(15,11+ns*0.12);
     ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
 
-    var multStr="+"+ns;
-    var multX=barX+barW+6;
-    // if some orbs are unstable, show total too
-    var showUnstable=(n-ns)>0&&n>0;
-
-    // glow — grows dramatically at high counts
-    var glowBlur=Math.min(28,Math.max(0,(n-4)*1.5))*Math.abs(pulse);
-    if(glowBlur>0.5){
-      ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.9)";
-      ctx.shadowBlur=glowBlur;
+    // glow on text only (not icon)
+    var glowBlur=Math.min(14,Math.max(0,(ns-5)*0.9))*pulse;
+    if(glowBlur>0.5){ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.85)";ctx.shadowBlur=glowBlur;}
+    if(ns>=50){
+      ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.2)";
+      ctx.fillText("+"+ns,multX+1,rowAy+1);
     }
-
-    // at 50+ add a second glow pass for extra intensity
-    if(n>=50){
-      ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.3)";
-      ctx.fillText(multStr,multX+Math.sin(t*0.008)*2,labelY+Math.cos(t*0.006)*1.5);
-    }
-
     ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(Math.min(1,baseAlpha*pulse))+")";
-    ctx.fillText(multStr,multX,labelY);
+    ctx.fillText("+"+ns,multX,rowAy);
     ctx.shadowBlur=0;ctx.shadowColor="transparent";
-    // orb icon — spins at high counts
-    var iconR=Math.min(7,3.5+n*0.07);
-    var iconAlpha=Math.min(0.9,0.35+n*0.025);
-    var iconX=multX+ctx.measureText(multStr).width+iconR+5;
-    // at 20+ the icon orbits slightly around its anchor
-    var iconOX=n>=20?Math.sin(t*0.005+1)*3:0;
-    var iconOY=n>=20?Math.cos(t*0.004)*2:0;
-    ctx.strokeStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+iconAlpha+")";
-    ctx.lineWidth=n>=15?1.5:1;
-    if(glowBlur>0.5){ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.7)";ctx.shadowBlur=glowBlur*0.6;}
-    ctx.beginPath();ctx.arc(iconX+iconOX,labelY+iconOY,iconR*Math.abs(pulse),0,6.28);ctx.stroke();
-    ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(iconAlpha*0.3)+")";
-    ctx.beginPath();ctx.arc(iconX+iconOX,labelY+iconOY,iconR*Math.abs(pulse),0,6.28);ctx.fill();
+
+    // blue orb icon — fixed size, fixed position, no orbit
+    var bTxtW=ctx.measureText("+"+ns).width;
+    var bIconX=multX+bTxtW+ICON_R+3;
+    ctx.strokeStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(Math.min(0.9,0.45+ns*0.02))+")";
+    ctx.lineWidth=1;
+    if(glowBlur>0.5){ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.4)";ctx.shadowBlur=glowBlur*0.4;}
+    ctx.beginPath();ctx.arc(bIconX,rowAy,ICON_R,0,6.28);ctx.stroke();
+    ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.18)";
+    ctx.beginPath();ctx.arc(bIconX,rowAy,ICON_R,0,6.28);ctx.fill();
     ctx.shadowBlur=0;ctx.shadowColor="transparent";
-    // unstable count — above the orb icon
-    if(showUnstable){
-      ctx.font="bold 9px system-ui,sans-serif";
-      ctx.fillStyle="rgba(255,110,50,0.75)";
-      ctx.textAlign="center";ctx.textBaseline="bottom";
-      ctx.fillText("−"+(n-ns),iconX+iconOX,labelY+iconOY-iconR*Math.abs(pulse)-1);
-      ctx.textAlign="left";ctx.textBaseline="top";
+
+    // red row — same font size, same icon size as blue
+    if(unstable>0){
+      ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
+      ctx.fillStyle="rgba(255,90,50,0.75)";
+      ctx.fillText("−"+unstable,multX,rowBy);
+      var rTxtW=ctx.measureText("−"+unstable).width;
+      var rIconX=multX+rTxtW+ICON_R+3;
+      ctx.strokeStyle="rgba(255,80,40,0.6)";ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(rIconX,rowBy,ICON_R,0,6.28);ctx.stroke();
+      ctx.fillStyle="rgba(255,60,20,0.14)";
+      ctx.beginPath();ctx.arc(rIconX,rowBy,ICON_R,0,6.28);ctx.fill();
+      ctx.fillStyle="rgba(255,110,70,0.45)";
+      ctx.beginPath();ctx.arc(rIconX,rowBy,1.5,0,6.28);ctx.fill();
     }
   }
 
@@ -1554,9 +1541,9 @@ var launcherIdleTime=0;
 var launcherIdleRings=[];
 
 function tickLauncherIdle(dt){
-  if(launcher.pulling||launcher.cooldown>0||launcher.launchWindow>0){launcherIdleTime=0;launcherIdleRings=[];return;}
+  if(launcher.pulling||launcher.cooldown>0){launcherIdleTime=0;launcherIdleRings=[];return;}
   launcherIdleTime+=dt;
-  if(launcherIdleTime>10000){
+  if(launcherIdleTime>3000){
     // pulse a ghost arc every 1.8 seconds
     if(launcherIdleRings.length===0||launcherIdleRings[launcherIdleRings.length-1].age>900){
       launcherIdleRings.push({age:0,life:1});
@@ -1571,38 +1558,39 @@ function tickLauncherIdle(dt){
 
 function drawLauncherIdleHint(){
   var lx=launcher.x,ly=launcher.y;
-  if(launcherIdleTime<10000)return;
-  var pulse=0.5+Math.sin(launcherIdleTime*0.003)*0.5; // 0..1 pulse
-  
-  // pulsing glow around cradle
-  var glowR=LAUNCH_ZONE_R*(0.8+pulse*0.3);
-  var glow=ctx.createRadialGradient(lx,ly,0,lx,ly,glowR);
-  glow.addColorStop(0,'rgba(255,200,80,'+(0.06+pulse*0.08)+')');
-  glow.addColorStop(1,'rgba(255,200,80,0)');
-  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(lx,ly,glowR,0,6.28);ctx.fill();
+  if(launcherIdleTime<3000)return;
+  // use a slower pulse so it doesn't fight with the READY text
+  var pulse=0.5+Math.sin(launcherIdleTime*0.002)*0.5;
 
-  // thick dashed arc showing launch zone
-  ctx.strokeStyle='rgba(255,200,80,'+(0.25+pulse*0.2)+')';
-  ctx.lineWidth=2+pulse*1.5;
-  ctx.setLineDash([5,5]);
-  ctx.beginPath();ctx.arc(lx,ly,22,0,6.28);ctx.stroke();
-  ctx.setLineDash([]);
+  // pull gesture hint — line + bouncing arrow below launcher
+  // shows the downward pull motion clearly
+  var arrowBaseY=ly+PLATFORM_R+10;
+  var arrowTipY=arrowBaseY+14+pulse*12;
+  var arrowAlpha=0.35+pulse*0.4;
 
-  // animated finger/arrow pulling down
-  var fingerY=ly+12+pulse*18; // bounces down
-  var fingerAlpha=0.4+pulse*0.4;
-  ctx.strokeStyle='rgba(255,200,80,'+fingerAlpha+')';ctx.lineWidth=1.5;ctx.lineCap='round';
-  // downward arrow (pull gesture hint)
-  ctx.beginPath();ctx.moveTo(lx,ly+4);ctx.lineTo(lx,fingerY);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(lx-5,fingerY-6);ctx.lineTo(lx,fingerY);ctx.lineTo(lx+5,fingerY-6);ctx.stroke();
+  ctx.strokeStyle='rgba(255,200,80,'+arrowAlpha+')';
+  ctx.lineWidth=1.5;ctx.lineCap='round';
+  // stem
+  ctx.beginPath();ctx.moveTo(lx,arrowBaseY);ctx.lineTo(lx,arrowTipY);ctx.stroke();
+  // arrowhead
+  ctx.beginPath();ctx.moveTo(lx-6,arrowTipY-7);ctx.lineTo(lx,arrowTipY);ctx.lineTo(lx+6,arrowTipY-7);ctx.stroke();
   ctx.lineCap='butt';
 
-  // ripple rings from cradle
+  // "pull" label beneath arrow — only for very first launch (launchNum<=1)
+  if(launcher.launchNum<=1){
+    ctx.font="10px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="top";
+    ctx.fillStyle="rgba(255,200,80,"+(arrowAlpha*0.75)+")";
+    ctx.fillText("pull to launch",lx,arrowTipY+4);
+    ctx.textAlign="left";ctx.textBaseline="top";
+  }
+
+  // ripple rings expanding outward from platform
   for(var i=0;i<launcherIdleRings.length;i++){
     var r=launcherIdleRings[i];
-    var prog=r.age/1800,alpha2=r.life*0.3;
-    ctx.strokeStyle='rgba(255,200,80,'+alpha2+')';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.arc(lx,ly,22+prog*50,0,6.28);ctx.stroke();
+    var prog=r.age/1800,alpha2=r.life*0.25;
+    ctx.strokeStyle='rgba(255,200,80,'+alpha2+')';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(lx,ly,PLATFORM_R+4+prog*45,0,6.28);ctx.stroke();
   }
 }
 

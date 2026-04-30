@@ -124,16 +124,16 @@ canvas{display:block;position:fixed;top:0;left:0}
     </svg>
     <div style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
     <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:28px;">gravity sandbox</div>
-    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep planets in stable orbit around the sun. More planets in a stable orbit = faster points. But the sun is hungry — and every orb it eats costs <em>more</em> than the last.</p>
+    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep planets in stable orbit. The more blue orbits you maintain, the faster your score climbs. But the sun grows every time it feeds — and if it absorbs too much mass, it collapses into a black hole and the game ends.</p>
     <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:32px;">
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> at the bottom to fire an orb — aim, release, repeat</span>
+        <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> to fire — launch window counts down, or it auto-fires toward the sun</span>
       </div>
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to create a gravity well — hold to attract, flick to sling</span>
+        <span style="font-size:20px;width:28px;text-align:center;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to pull nearby planets with gravity — flick to sling them</span>
       </div>
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">☀️</span><span><strong style="color:rgba(255,80,80,0.9);">The sun is the enemy</strong> — every orb it eats costs more than the last</span>
+        <span style="font-size:20px;width:28px;text-align:center;">⚫</span><span><strong style="color:rgba(200,80,255,0.9);">Watch the sun's mass bar</strong> — fill it and it becomes a black hole. Game over.</span>
       </div>
     </div>
     <button onclick="startGame()" style="display:block;width:100%;padding:16px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:14px;color:white;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.5px;">Start ORBit</button>
@@ -197,12 +197,13 @@ canvas{display:block;position:fixed;top:0;left:0}
   </div>
   <!-- HOW TO PLAY TAB -->
   <div id="tab-howto" class="tab-content">
-    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch planets and keep them in stable orbit around a sun. Planets launched at the right speed settle into stable orbits. Too fast and they fly away. Too slow and the sun swallows them. Only blue and green orbits score — yellow and red don't count. Everything follows one rule: mass attracts mass.</p>
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch planets into orbit around a sun. Only blue and green stable orbits score. The sun grows every time it absorbs a planet — fill its mass bar and it collapses into a black hole, ending the game. Everything follows one rule: mass attracts mass.</p>
     <div class="how-section">
       <h3>Controls</h3>
-      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launch orbs</h4><p>Pull back on the launcher at the bottom. Angle left or right across 180°. Harder pull = faster launch.</p></div></div>
+      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. Each orb takes longer to load than the last. Once ready, you have 10 seconds to launch — or it auto-fires toward the sun.</p></div></div>
       <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby orbs are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
       <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Orbs that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
+      <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Every planet the sun absorbs grows its mass. Watch the ☀ mass bar in the score panel. When it fills, the sun collapses — and devours everything on the map. That's game over.</p></div></div>
       <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> and <span style="color:#22cc88;">green</span> = stable, scoring orbits. Yellow → orange → <span style="color:#ff4444;">red</span> = decaying, non-scoring. Nudge red orbs back to stability.</p></div></div>
     </div>
     <div class="how-section">
@@ -221,7 +222,9 @@ canvas{display:block;position:fixed;top:0;left:0}
       <div class="tip-row"><div class="tip-dot"></div><span>Launch sideways to create elliptical orbits that cross the screen.</span></div>
       <div class="tip-row"><div class="tip-dot"></div><span>Moving the sun reshapes every orbit at once.</span></div>
       <div class="tip-row"><div class="tip-dot"></div><span>A gentle perpendicular nudge with the gravity well can rescue a red orb without sending it flying.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>The launcher cooldown grows with orb count — you can't spam your way to a high score.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Launcher cooldown grows with each orb launched — later orbs take up to 60s to load.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Smaller planets add less mass to the sun than large ones — use them to play it safe.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>When the mass bar glows purple, the black hole is close. End your game and save your score.</span></div>
     </div>
   </div>
   <!-- SCORES TAB -->

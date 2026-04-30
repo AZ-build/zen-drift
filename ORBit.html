@@ -21,15 +21,205 @@ canvas{display:block;position:fixed;top:0;left:0}
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="menu-overlay" style="display:none;position:fixed;inset:0;z-index:20;background:rgba(3,3,8,0.88);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;">
-  <div style="text-align:center;font-family:system-ui,sans-serif;">
-    <div style="font-size:13px;letter-spacing:5px;text-transform:lowercase;color:rgba(255,255,255,0.25);margin-bottom:32px;">paused</div>
-    <button onclick="resumeGame()" style="display:block;width:200px;margin:0 auto 12px;padding:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;color:rgba(255,255,255,0.85);font-size:16px;font-family:system-ui,sans-serif;cursor:pointer;letter-spacing:1px;">Resume</button>
-    <button onclick="resetGame()" style="display:block;width:200px;margin:0 auto 12px;padding:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;color:rgba(255,255,255,0.85);font-size:16px;font-family:system-ui,sans-serif;cursor:pointer;letter-spacing:1px;">Reset</button>
-    <button style="display:block;width:200px;margin:0 auto;padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px;color:rgba(255,255,255,0.2);font-size:16px;font-family:system-ui,sans-serif;cursor:default;letter-spacing:1px;">Settings <span style="font-size:11px;">(soon)</span></button>
+<style>
+.orbit-overlay{position:fixed;inset:0;z-index:30;background:rgba(3,3,8,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,sans-serif;color:rgba(255,255,255,0.88);}
+.orbit-panel{position:fixed;top:0;right:0;bottom:0;width:min(340px,100vw);z-index:20;background:rgba(6,8,20,0.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-left:1px solid rgba(255,255,255,0.06);font-family:system-ui,sans-serif;display:flex;flex-direction:column;}
+.tab-bar{display:flex;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;}
+.tab-btn{flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.35);font-size:11px;letter-spacing:2px;text-transform:lowercase;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:color 0.2s;}
+.tab-btn.active{color:rgba(255,255,255,0.85);border-bottom:2px solid rgba(100,200,255,0.6);}
+.tab-content{flex:1;overflow-y:auto;padding:20px 18px;display:none;-webkit-overflow-scrolling:touch;}
+.tab-content.active{display:block;}
+.menu-action{display:block;width:100%;margin-bottom:8px;padding:13px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:12px;color:rgba(255,255,255,0.85);font-size:15px;font-family:inherit;cursor:pointer;text-align:left;transition:background 0.15s;}
+.menu-action:hover{background:rgba(255,255,255,0.1);}
+.menu-action.danger{color:rgba(255,130,100,0.85);}
+.how-section{margin-bottom:22px;}
+.how-section h3{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:10px;}
+.how-card{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;}
+.how-icon{font-size:20px;flex-shrink:0;margin-top:1px;}
+.how-card h4{font-size:14px;font-weight:600;margin-bottom:3px;}
+.how-card p{font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;}
+.score-pills{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.score-pill{background:rgba(255,255,255,0.04);border-radius:10px;padding:10px 12px;}
+.score-pill .val{font-size:22px;font-weight:700;font-family:monospace;line-height:1;}
+.score-pill .lbl{font-size:11px;color:rgba(255,255,255,0.3);margin-top:3px;}
+.tip-row{display:flex;gap:10px;align-items:baseline;font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:8px;}
+.tip-dot{width:4px;height:4px;border-radius:50%;background:#cc44ff;flex-shrink:0;margin-top:6px;}
+.install-steps{display:flex;flex-direction:column;gap:7px;}
+.install-step{display:flex;gap:10px;font-size:13px;color:rgba(255,255,255,0.55);}
+.step-num{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;color:rgba(255,255,255,0.3);}
+.badge{display:inline-block;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:4px;font-weight:600;margin-bottom:10px;}
+.ios{background:rgba(51,153,255,0.15);color:#3399ff;}
+.android{background:rgba(34,204,136,0.15);color:#22cc88;}
+</style>
+
+<!-- LOADING SCREEN -->
+<div id="loading-overlay" style="position:fixed;inset:0;z-index:40;background:#030308;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,sans-serif;">
+  <svg viewBox="0 0 80 80" width="60" height="60" style="margin-bottom:20px;">
+    <circle cx="40" cy="40" r="37" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+    <circle cx="40" cy="40" r="25" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+    <circle cx="40" cy="40" r="13" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
+    <defs><radialGradient id="lsg" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="40%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+    <circle cx="40" cy="40" r="7" fill="url(#lsg)"/>
+    <circle cx="40" cy="27" r="4" fill="#3399ff"/>
+    <circle cx="56" cy="26" r="5" fill="#22cc88"/>
+    <circle cx="22" cy="15" r="3.5" fill="#cc44ff"/>
+  </svg>
+  <div style="font-size:28px;font-weight:800;letter-spacing:-0.5px;color:white;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
+  <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.2);margin-bottom:32px;">gravity sandbox</div>
+  <!-- progress bar -->
+  <div style="width:160px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;">
+    <div id="loading-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#3399ff,#cc44ff);border-radius:2px;transition:width 0.2s ease;"></div>
   </div>
 </div>
-<a id="logo-link" href="info.html" style="position:fixed;top:0;right:0;width:150px;height:48px;z-index:10;display:block;-webkit-tap-highlight-color:transparent;"></a>
+
+<!-- INTRO OVERLAY -->
+<div id="intro-overlay" class="orbit-overlay" style="display:flex;align-items:center;justify-content:center;">
+  <div style="text-align:center;max-width:320px;padding:0 24px;">
+    <svg viewBox="0 0 80 80" width="72" height="72" style="margin-bottom:16px;">
+      <circle cx="40" cy="40" r="37" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+      <circle cx="40" cy="40" r="25" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+      <circle cx="40" cy="40" r="13" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
+      <defs><radialGradient id="intro-sun-g" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="40%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+      <circle cx="40" cy="40" r="7" fill="url(#intro-sun-g)"/>
+      <circle cx="40" cy="27" r="4" fill="#3399ff"/>
+      <circle cx="56" cy="26" r="5" fill="#22cc88"/>
+      <circle cx="22" cy="15" r="3.5" fill="#cc44ff"/>
+    </svg>
+    <div style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
+    <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:28px;">gravity sandbox</div>
+    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep planets orbiting the sun. More orbs = faster points. But the sun is hungry — and every planet it eats costs <em>more</em> than the last.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:32px;">
+      <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
+        <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> at the bottom — aim, release, repeat</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
+        <span style="font-size:20px;width:28px;text-align:center;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to create a gravity well — hold to attract, flick to sling</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
+        <span style="font-size:20px;width:28px;text-align:center;">☀️</span><span><strong style="color:rgba(255,80,80,0.9);">The sun is the enemy</strong> — the more it eats, the worse it gets</span>
+      </div>
+    </div>
+    <button onclick="startGame()" style="display:block;width:100%;padding:16px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:14px;color:white;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.5px;">Start ORBit</button>
+  </div>
+</div>
+
+<!-- END GAME OVERLAY -->
+<div id="endgame-overlay" style="display:none;position:fixed;inset:0;z-index:25;background:rgba(3,3,8,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,sans-serif;display:none;align-items:center;justify-content:center;">
+  <div style="text-align:center;max-width:300px;padding:0 24px;width:100%;">
+    <div style="font-size:13px;letter-spacing:4px;text-transform:lowercase;color:rgba(255,255,255,0.25);margin-bottom:8px;">game over</div>
+    <div id="endgame-score" style="font-size:64px;font-weight:800;color:white;line-height:1;margin-bottom:4px;">0</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.3);margin-bottom:28px;">points</div>
+    <div style="margin-bottom:20px;">
+      <input id="name-input" type="text" maxlength="16" placeholder="your name" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(255,255,255,0.88);font-size:16px;font-family:inherit;outline:none;box-sizing:border-box;text-align:center;"/>
+    </div>
+    <button onclick="saveScore()" style="display:block;width:100%;padding:14px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:12px;color:white;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:10px;">Save Score</button>
+    <button onclick="skipSave()" style="display:block;width:100%;padding:10px;background:none;border:none;color:rgba(255,255,255,0.25);font-size:14px;font-family:inherit;cursor:pointer;">Skip</button>
+  </div>
+</div>
+
+<!-- MENU PANEL (slides in from right) -->
+<div id="menu-overlay" class="orbit-panel" style="display:none;">
+  <div style="padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:9px;">
+      <svg viewBox="0 0 48 48" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="22" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+        <circle cx="24" cy="24" r="15" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+        <circle cx="24" cy="24" r="8" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
+        <defs>
+          <radialGradient id="mng" cx="38%" cy="34%" r="65%">
+            <stop offset="0%" stop-color="#fff8e0"/>
+            <stop offset="40%" stop-color="#ffcc55"/>
+            <stop offset="100%" stop-color="#ff8820"/>
+          </radialGradient>
+        </defs>
+        <circle cx="24" cy="24" r="5" fill="url(#mng)"/>
+        <circle cx="24" cy="16" r="2.5" fill="#3399ff"/>
+        <circle cx="33" cy="15" r="3" fill="#22cc88"/>
+        <circle cx="13" cy="9" r="2" fill="#cc44ff"/>
+      </svg>
+      <div style="font-size:18px;font-weight:700;letter-spacing:-0.5px;color:rgba(255,255,255,0.92);">ORB<span style="color:#cc44ff;">it</span></div>
+    </div>
+    <button onclick="resumeGame()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:22px;cursor:pointer;padding:4px 8px;font-family:inherit;">✕</button>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('game')">game</button>
+    <button class="tab-btn" onclick="showTab('howto')">how to play</button>
+    <button class="tab-btn" onclick="showTab('scores')">scores</button>
+    <button class="tab-btn" onclick="showTab('install')">install</button>
+  </div>
+  <!-- GAME TAB -->
+  <div id="tab-game" class="tab-content active">
+    <button class="menu-action" onclick="resumeGame()">▶  Resume</button>
+    <button class="menu-action" onclick="endGame()">🏁  End &amp; Save Score</button>
+    <button class="menu-action" onclick="resetGame()">↺  Reset game</button>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:16px 0;"></div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.2);letter-spacing:3px;text-transform:lowercase;margin-bottom:10px;">coming soon</div>
+    <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🔊  Sound</button>
+    <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🎨  Themes</button>
+    <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">⚙️  Settings</button>
+  </div>
+  <!-- HOW TO PLAY TAB -->
+  <div id="tab-howto" class="tab-content">
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch planets and keep them orbiting a sun. Planets launched at the right speed settle into stable orbits. Too fast and they fly away. Too slow and the sun swallows them. Everything follows one rule: mass attracts mass.</p>
+    <div class="how-section">
+      <h3>Controls</h3>
+      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launch planets</h4><p>Pull back on the launcher at the bottom. Angle left or right across 180°. Harder pull = faster launch.</p></div></div>
+      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby planets are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
+      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> = stable orbit. Colors shift through green → yellow → orange → <span style="color:#ff4444;">red</span> as orbits decay. Nudge red planets to save them.</p></div></div>
+    </div>
+    <div class="how-section">
+      <h3>Scoring</h3>
+      <div class="score-pills">
+        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">per bar fill · n = orb count</div></div>
+        <div class="score-pill"><div class="val" style="color:#22cc88;">×n</div><div class="lbl">more orbs = bar fills faster</div></div>
+        <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum orbs to start scoring</div></div>
+        <div class="score-pill"><div class="val" style="color:#ff5555;">−5×n</div><div class="lbl">each eaten orb costs more</div></div>
+      </div>
+      <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:10px;line-height:1.6;">The sun penalty escalates: 1st planet eaten = −5, 2nd = −10, 3rd = −15. Watch the ☀ tracker in the corner.</p>
+    </div>
+    <div class="how-section">
+      <h3>Tips</h3>
+      <div class="tip-row"><div class="tip-dot"></div><span>Watch the trajectory line before releasing — it curves toward the sun's gravity.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Launch sideways to create elliptical orbits that cross the screen.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Moving the sun reshapes every orbit at once.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>A gentle perpendicular nudge with the gravity well can rescue a red planet without sending it flying.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>The launcher cooldown grows with orb count — you can't spam your way to a high score.</span></div>
+    </div>
+  </div>
+  <!-- SCORES TAB -->
+  <div id="tab-scores" class="tab-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:12px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.2);">local scores</div>
+      <button onclick="clearScores()" style="background:none;border:none;color:rgba(255,255,255,0.18);font-size:11px;font-family:inherit;cursor:pointer;padding:2px 6px;">clear all</button>
+    </div>
+    <div id="leaderboard-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    <div id="leaderboard-empty" style="text-align:center;padding:32px 0;font-size:13px;color:rgba(255,255,255,0.2);">no scores yet</div>
+  </div>
+  <!-- INSTALL TAB -->
+  <div id="tab-install" class="tab-content">
+    <p style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:20px;">Add ORBit to your home screen for a full-screen experience with no browser chrome.</p>
+    <div class="how-section">
+      <span class="badge ios">iOS · Safari</span>
+      <div class="install-steps">
+        <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Safari</strong> on iPhone or iPad</span></div>
+        <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>Share button</strong> — square with arrow pointing up</span></div>
+        <div class="install-step"><div class="step-num">3</div><span>Scroll down and tap <strong>Add to Home Screen</strong></span></div>
+        <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong> — ORBit opens full-screen like a native app</span></div>
+      </div>
+    </div>
+    <div class="how-section" style="margin-top:20px;">
+      <span class="badge android">Android · Chrome</span>
+      <div class="install-steps">
+        <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Chrome</strong></span></div>
+        <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>three-dot menu</strong> top right</span></div>
+        <div class="install-step"><div class="step-num">3</div><span>Tap <strong>Add to Home screen</strong></span></div>
+        <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<a id="logo-link" href="#" onclick="showMenu();return false;" style="position:fixed;top:0;right:0;width:150px;height:48px;z-index:10;display:block;-webkit-tap-highlight-color:transparent;"></a>
 
 <script>
 "use strict";
@@ -39,7 +229,10 @@ var W=0,H=0,TS=0.05,GM=4.0;
 function orbV(r,d){return Math.sqrt(GM/(d*TS))*(1+Math.max(0,(14-r)*0.006));}
 function idealSpeed(d){return Math.sqrt(GM/d)*Math.sqrt(1/TS);}
 var sun={x:0,y:0,vx:0,vy:0,r:28,homeX:0,homeY:0};
-var PUCK_R=28;var puck={active:false,x:0,y:0,px:0,py:0};
+var well={active:false,x:0,y:0,px:0,py:0,vx:0,vy:0};
+var WELL_CAPTURE=32; // radius where planet locks to finger
+var WELL_ATTRACT=180; // radius of gravitational influence
+var WELL_STRENGTH=0.006; // gravity constant for finger well
 var STAB=[[40,160,240],[40,200,180],[50,210,120],[180,210,50],[240,180,40],[240,100,40],[220,50,50]];
 function stabCol(t){t=Math.min(1,t)*(STAB.length-1);var i=Math.floor(t),f=t-i;if(i>=STAB.length-1)return STAB[STAB.length-1];return l3(STAB[i],STAB[i+1],f);}
 function l3(a,b,t){return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]}
@@ -50,8 +243,43 @@ function initW(){cols=Math.ceil(W/CELL)+4;rows=Math.ceil(H/CELL)+4;wH=new Float3
 function disturb(px,py,str){var cx=~~(px/CELL)+1,cy=~~(py/CELL)+1;for(var dy=-4;dy<=4;dy++)for(var dx=-4;dx<=4;dx++){var gx=cx+dx,gy=cy+dy;if(gx<0||gx>=cols||gy<0||gy>=rows)continue;var d=Math.sqrt(dx*dx+dy*dy);if(d>4)continue;wH[gy*cols+gx]+=str*(1-d/4)*(1-d/4);}}
 function stepW(){for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wV[i]+=((wH[i-1]+wH[i+1]+wH[i-cols]+wH[i+cols])*0.25-wH[i])*0.3;wV[i]*=0.94;}for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wH[i]+=wV[i];if(wH[i]>5)wH[i]=5;if(wH[i]<-5)wH[i]=-5;}for(var x=0;x<cols;x++){wH[x]=0;wV[x]=0;wH[(rows-1)*cols+x]=0;wV[(rows-1)*cols+x]=0;}for(var y=0;y<rows;y++){wH[y*cols]=0;wV[y*cols]=0;wH[y*cols+cols-1]=0;wV[y*cols+cols-1]=0;}}
 function wAt(px,py){var gxf=px/CELL+1,gyf=py/CELL+1,gx=~~gxf,gy=~~gyf;if(gx<0||gx>=cols-1||gy<0||gy>=rows-1)return 0;var fx=gxf-gx,fy=gyf-gy,i=gy*cols+gx;return wH[i]*(1-fx)*(1-fy)+wH[i+1]*fx*(1-fy)+wH[i+cols]*(1-fx)*fy+wH[i+cols+1]*fx*fy;}
-function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var s=3500/(d*d+500),wx=dx/d*s,wy=dy/d*s;if(puck.active){var fdx=puck.x-px,fdy=puck.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;var fs=600/(fd*fd+300);wx+=fdx/fd*fs;wy+=fdy/fd*fs;}return{x:wx,y:wy};}
-function drawGrid(t){var sh=t*0.0004,sp=22;for(var py=0;py<H;py+=sp){ctx.beginPath();var s=false,wA=0;for(var px=0;px<W;px+=4){var h=wAt(px,py),g=gWarp(px,py);wA=Math.max(wA,Math.abs(h));if(!s){ctx.moveTo(px+g.x,py+h*4+g.y);s=true;}else ctx.lineTo(px+g.x,py+h*4+g.y);}var dS=Math.abs(py-sun.y),sP=Math.max(0,1-dS/(Math.max(W,H)*0.45));ctx.strokeStyle=rgba(stabCol(0.05),Math.min(0.3,0.045+sP*0.06+wA*0.08));ctx.lineWidth=0.55;ctx.stroke();}for(var px=0;px<W;px+=sp){ctx.beginPath();var s=false,wA=0;for(var py2=0;py2<H;py2+=4){var h=wAt(px,py2),g=gWarp(px,py2);wA=Math.max(wA,Math.abs(h));if(!s){ctx.moveTo(px+h*4+g.x,py2+g.y);s=true;}else ctx.lineTo(px+h*4+g.x,py2+g.y);}var dS=Math.abs(px-sun.x),sP=Math.max(0,1-dS/(Math.max(W,H)*0.45));ctx.strokeStyle=rgba(stabCol(0.1),Math.min(0.22,0.035+sP*0.045+wA*0.06));ctx.lineWidth=0.4;ctx.stroke();}}
+function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var s=14000/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.active){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;var fs=4000/(fd*fd+150);wx+=fdx/fd*fs;wy+=fdy/fd*fs;}return{x:wx,y:wy};}
+function drawGrid(t){
+  var sp=22;
+  // slow diagonal drift — solar system moving through space
+  var driftX=(t*0.0055)%sp;
+  var driftY=(t*0.0032)%sp;
+
+  // horizontal lines (drift vertically)
+  for(var py=-sp;py<H+sp;py+=sp){
+    var ry=py+driftY; // drifted y position
+    ctx.beginPath();var s=false,wA=0;
+    for(var px=0;px<W;px+=4){
+      var h=wAt(px,ry),g=gWarp(px,ry);
+      wA=Math.max(wA,Math.abs(h));
+      if(!s){ctx.moveTo(px+g.x+driftX*0.3,ry+h*4+g.y);s=true;}
+      else ctx.lineTo(px+g.x+driftX*0.3,ry+h*4+g.y);
+    }
+    var dS=Math.abs(ry-sun.y),sP=Math.max(0,1-dS/(Math.max(W,H)*0.45));
+    ctx.strokeStyle=rgba(stabCol(0.05),Math.min(0.55,0.045+sP*0.18+wA*0.1));
+    ctx.lineWidth=0.55+sP*0.7;ctx.stroke();
+  }
+
+  // vertical lines (drift horizontally)
+  for(var px=-sp;px<W+sp;px+=sp){
+    var rx=px+driftX; // drifted x position
+    ctx.beginPath();var s=false,wA=0;
+    for(var py2=0;py2<H;py2+=4){
+      var h=wAt(rx,py2),g=gWarp(rx,py2);
+      wA=Math.max(wA,Math.abs(h));
+      if(!s){ctx.moveTo(rx+h*4+g.x,py2+g.y+driftY*0.3);s=true;}
+      else ctx.lineTo(rx+h*4+g.x,py2+g.y+driftY*0.3);
+    }
+    var dS=Math.abs(rx-sun.x),sP=Math.max(0,1-dS/(Math.max(W,H)*0.45));
+    ctx.strokeStyle=rgba(stabCol(0.1),Math.min(0.42,0.035+sP*0.14+wA*0.07));
+    ctx.lineWidth=0.4+sP*0.5;ctx.stroke();
+  }
+}
 
 var stars=[];function initStars(){stars=[];for(var i=0;i<150;i++){var b=Math.random()<0.12;stars.push({x:Math.random()*W,y:Math.random()*H,a:b?0.15+Math.random()*0.25:0.04+Math.random()*0.1,r:b?0.6+Math.random():0.3+Math.random()*0.5,sp:0.0003+Math.random()*0.0015,po:Math.random()*6.28,w:Math.random()});}}
 function drawStars(t){for(var i=0;i<stars.length;i++){var s=stars[i];if(s.x>W||s.y>H)continue;var a=s.a*(0.6+Math.sin(t*s.sp+s.po)*0.4);if(a<0.01)continue;ctx.fillStyle="rgba("+(200+~~(s.w*55))+","+(200+~~(s.w*40))+","+(255-~~(s.w*60))+","+a+")";ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,6.28);ctx.fill();}}
@@ -185,28 +413,119 @@ function drawGalaxies(t){
 }
 
 function updateSun(dt){var dx=sun.homeX-sun.x,dy=sun.homeY-sun.y;sun.vx+=dx*0.000003*dt;sun.vy+=dy*0.000003*dt;sun.vx*=0.998;sun.vy*=0.998;sun.x+=sun.vx*dt*TS;sun.y+=sun.vy*dt*TS;var m=sun.r*0.5;if(sun.x<-m){sun.x=-m;sun.vx=Math.abs(sun.vx)*0.3;}if(sun.x>W+m){sun.x=W+m;sun.vx=-Math.abs(sun.vx)*0.3;}if(sun.y<-m){sun.y=-m;sun.vy=Math.abs(sun.vy)*0.3;}if(sun.y>H+m){sun.y=H+m;sun.vy=-Math.abs(sun.vy)*0.3;}}
-function drawSun(t){var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02);var g3=ctx.createRadialGradient(sx,sy,0,sx,sy,R*6);g3.addColorStop(0,"rgba(255,180,60,0.03)");g3.addColorStop(0.4,"rgba(255,120,40,0.01)");g3.addColorStop(1,"rgba(255,80,20,0)");ctx.fillStyle=g3;ctx.beginPath();ctx.arc(sx,sy,R*6,0,6.28);ctx.fill();ctx.save();ctx.translate(sx,sy);for(var i=0;i<8;i++){var ang=i*0.785+Math.sin(t*0.0003+i*1.7)*0.3;var len=R*(1.4+Math.sin(t*0.0005+i*2.3)*0.4);var ex=Math.cos(ang)*len,ey=Math.sin(ang)*len;var cg=ctx.createRadialGradient(0,0,R*0.8,ex*0.5,ey*0.5,len*0.6);cg.addColorStop(0,"rgba(255,200,100,0.06)");cg.addColorStop(1,"rgba(255,140,50,0)");ctx.fillStyle=cg;ctx.beginPath();ctx.arc(ex*0.4,ey*0.4,len*0.5,0,6.28);ctx.fill();}ctx.restore();var g2=ctx.createRadialGradient(sx,sy,R*0.4,sx,sy,R*1.8);g2.addColorStop(0,"rgba(255,230,180,0.12)");g2.addColorStop(0.5,"rgba(255,170,70,0.04)");g2.addColorStop(1,"rgba(255,120,40,0)");ctx.fillStyle=g2;ctx.beginPath();ctx.arc(sx,sy,R*1.8,0,6.28);ctx.fill();ctx.save();ctx.translate(sx,sy);ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.clip();var gc=ctx.createRadialGradient(-R*0.15,-R*0.15,0,0,0,R);gc.addColorStop(0,"rgba(255,255,240,0.97)");gc.addColorStop(0.2,"rgba(255,240,190,0.95)");gc.addColorStop(0.5,"rgba(255,200,90,0.9)");gc.addColorStop(0.8,"rgba(240,150,50,0.85)");gc.addColorStop(1,"rgba(220,110,30,0.75)");ctx.fillStyle=gc;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();for(var i=0;i<5;i++){var sa2=t*0.00015+i*1.26;var sx2=Math.cos(sa2)*R*0.4,sy2=Math.sin(sa2)*R*0.4;var sg=ctx.createRadialGradient(sx2,sy2,0,sx2,sy2,R*0.35);sg.addColorStop(0,"rgba(255,255,220,0.15)");sg.addColorStop(1,"rgba(255,230,180,0)");ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx2,sy2,R*0.35,0,6.28);ctx.fill();}var ed=ctx.createRadialGradient(0,0,R*0.6,0,0,R);ed.addColorStop(0,"rgba(0,0,0,0)");ed.addColorStop(1,"rgba(180,80,20,0.3)");ctx.fillStyle=ed;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();ctx.restore();ctx.strokeStyle="rgba(255,200,100,0.25)";ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(sx,sy,R,0,6.28);ctx.stroke();}
+function drawSun(t){
+  var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02);
 
-function drawPuck(){if(!puck.active)return;var x=puck.x,y=puck.y,r=PUCK_R;disturb(x,y,0.3);var halo=ctx.createRadialGradient(x,y,r,x,y,r*1.8);halo.addColorStop(0,"rgba(180,220,255,0.06)");halo.addColorStop(1,"rgba(180,220,255,0)");ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,r*1.8,0,6.28);ctx.fill();var g=ctx.createRadialGradient(x-r*0.2,y-r*0.25,0,x,y,r);g.addColorStop(0,"rgba(210,235,255,0.10)");g.addColorStop(0.5,"rgba(170,210,255,0.05)");g.addColorStop(1,"rgba(120,170,255,0.01)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,6.28);ctx.fill();ctx.strokeStyle="rgba(180,220,255,0.28)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r,0,6.28);ctx.stroke();ctx.strokeStyle="rgba(200,230,255,0.1)";ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(x,y,r*0.6,0,6.28);ctx.stroke();}
+  // warm outer glow
+  var g3=ctx.createRadialGradient(sx,sy,0,sx,sy,R*6);
+  g3.addColorStop(0,"rgba(255,180,60,0.04)");
+  g3.addColorStop(0.4,"rgba(255,120,40,0.015)");
+  g3.addColorStop(1,"rgba(255,80,20,0)");
+  ctx.fillStyle=g3;ctx.beginPath();ctx.arc(sx,sy,R*6,0,6.28);ctx.fill();
+
+  ctx.save();ctx.translate(sx,sy);
+
+  // soft corona tendril blobs — orange, slow
+  for(var i=0;i<8;i++){
+    var ang=i*0.785+Math.sin(t*0.0003+i*1.7)*0.3;
+    var len=R*(1.4+Math.sin(t*0.0005+i*2.3)*0.35);
+    var ex=Math.cos(ang)*len,ey=Math.sin(ang)*len;
+    var cg=ctx.createRadialGradient(0,0,R*0.8,ex*0.5,ey*0.5,len*0.65);
+    cg.addColorStop(0,"rgba(255,160,60,0.07)");
+    cg.addColorStop(1,"rgba(255,100,30,0)");
+    ctx.fillStyle=cg;ctx.beginPath();ctx.arc(ex*0.4,ey*0.4,len*0.5,0,6.28);ctx.fill();
+  }
+
+  // 8 soft rounded spikes — hint of danger, not aggressive
+  for(var i=0;i<8;i++){
+    var ang=i*0.785+t*0.00015;
+    var wobble=Math.sin(t*0.0006+i*1.9)*0.2;
+    var len=R*(1.3+wobble+(i%2===0?0.15:0));
+    var ex=Math.cos(ang)*len,ey=Math.sin(ang)*len;
+    var perpX=Math.cos(ang+Math.PI/2)*R*0.06;
+    var perpY=Math.sin(ang+Math.PI/2)*R*0.06;
+    ctx.beginPath();
+    ctx.moveTo(perpX*1.5,perpY*1.5);
+    ctx.quadraticCurveTo(ex*0.7+perpX*2,ey*0.7+perpY*2,ex,ey);
+    ctx.quadraticCurveTo(ex*0.7-perpX*2,ey*0.7-perpY*2,-perpX*1.5,-perpY*1.5);
+    ctx.closePath();
+    ctx.fillStyle="rgba(255,150,40,"+(0.06+wobble*0.03)+")";
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  // inner body — warm yellow-orange, bright
+  ctx.save();ctx.translate(sx,sy);
+  ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.clip();
+  var gc=ctx.createRadialGradient(-R*0.15,-R*0.15,0,0,0,R);
+  gc.addColorStop(0,"rgba(255,255,240,0.97)");
+  gc.addColorStop(0.2,"rgba(255,240,180,0.95)");
+  gc.addColorStop(0.5,"rgba(255,200,80,0.9)");
+  gc.addColorStop(0.8,"rgba(245,155,45,0.85)");
+  gc.addColorStop(1,"rgba(220,100,25,0.75)");
+  ctx.fillStyle=gc;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
+
+  // soft granulation
+  for(var i=0;i<5;i++){
+    var sa2=t*0.00015+i*1.26;
+    var sx2=Math.cos(sa2)*R*0.38,sy2=Math.sin(sa2)*R*0.38;
+    var sg=ctx.createRadialGradient(sx2,sy2,0,sx2,sy2,R*0.32);
+    sg.addColorStop(0,"rgba(255,255,220,0.13)");
+    sg.addColorStop(1,"rgba(255,220,160,0)");
+    ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx2,sy2,R*0.32,0,6.28);ctx.fill();
+  }
+
+  // light limb darkening
+  var ed=ctx.createRadialGradient(0,0,R*0.55,0,0,R);
+  ed.addColorStop(0,"rgba(0,0,0,0)");
+  ed.addColorStop(1,"rgba(160,60,10,0.28)");
+  ctx.fillStyle=ed;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
+  ctx.restore();
+
+  // warm golden rim
+  ctx.strokeStyle="rgba(255,190,80,0.3)";ctx.lineWidth=0.8;
+  ctx.beginPath();ctx.arc(sx,sy,R,0,6.28);ctx.stroke();
+}
+
+function drawPuck(){
+  if(!well.active)return;
+  var x=well.x,y=well.y;
+  disturb(x,y,0.2);
+  // outer attraction field — faint
+  var halo=ctx.createRadialGradient(x,y,WELL_CAPTURE,x,y,WELL_ATTRACT*0.5);
+  halo.addColorStop(0,"rgba(180,100,255,0.04)");
+  halo.addColorStop(1,"rgba(180,100,255,0)");
+  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,WELL_ATTRACT*0.5,0,6.28);ctx.fill();
+  // capture ring — where planets lock on
+  ctx.strokeStyle="rgba(200,120,255,0.2)";ctx.lineWidth=0.8;
+  ctx.setLineDash([3,5]);ctx.beginPath();ctx.arc(x,y,WELL_CAPTURE,0,6.28);ctx.stroke();
+  ctx.setLineDash([]);
+  // tiny center dot
+  var cg=ctx.createRadialGradient(x,y,0,x,y,8);
+  cg.addColorStop(0,"rgba(220,150,255,0.5)");
+  cg.addColorStop(1,"rgba(180,80,255,0)");
+  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,8,0,6.28);ctx.fill();
+}
 
 var PTYPES=[{name:"rocky",bands:0,hasRing:false,hasCraters:true,hasAtmo:false,atmoC:null,surfTint:[0.9,0.85,0.8]},{name:"terr",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[100,180,255],surfTint:[0.7,0.8,1.0]},{name:"gas",bands:3,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[255,200,150],surfTint:[1.0,0.9,0.7]},{name:"ringed",bands:2,hasRing:true,hasCraters:false,hasAtmo:false,atmoC:null,surfTint:[0.85,0.9,1.0]},{name:"ice",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[150,220,255],surfTint:[0.8,0.95,1.0]}];
 
 /* === LAUNCHER === */
-var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0};
-var LAUNCH_ZONE_R=55,MAX_PULL=150,MAX_SPEED=2.0;
+var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000};
+var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=2.0;
+var PLATFORM_R=22; // full circle platform radius
 function queueNext(){launcher.nextR=6+Math.floor(Math.random()*16);launcher.nextPT=Math.floor(Math.random()*PTYPES.length);}
 
 function getLaunchParams(){
   var pdx=launcher.pullX-launcher.x,pdy=launcher.pullY-launcher.y;
   var rawDist=Math.sqrt(pdx*pdx+pdy*pdy);
   var pullDist=Math.min(rawDist,MAX_PULL);
-  var pullAng=Math.atan2(pdy,pdx);
-  if(pullAng<0.01)pullAng=0.01;if(pullAng>3.13)pullAng=3.13;
+  var pullAng=Math.atan2(pdy,pdx); // full 360
   var power=pullDist/MAX_PULL;
   var launchAng=pullAng+Math.PI;
   var speed=0.4+power*(MAX_SPEED-0.4);
   return{pullDist:pullDist,pullAng:pullAng,launchAng:launchAng,power:power,speed:speed,
-    orbX:launcher.x+Math.cos(pullAng)*pullDist,orbY:launcher.y+Math.sin(pullAng)*pullDist,
+    orbX:launcher.x+Math.cos(pullAng)*pullDist,orbY:launcher.y+Math.sin(pullAng)*pullDist, // from center
     vx:Math.cos(launchAng)*speed,vy:Math.sin(launchAng)*speed};
 }
 
@@ -221,82 +540,101 @@ function simulateTraj(sx,sy,vx,vy,steps){
 
 function drawLauncher(t){
   var lx=launcher.x,ly=launcher.y;
-  // cradle
-  ctx.strokeStyle="rgba(180,220,255,0.15)";ctx.lineWidth=1;
-  ctx.beginPath();ctx.arc(lx,ly,20,Math.PI,2*Math.PI);ctx.stroke();
-  for(var a=-90;a<=90;a+=22){var rad=(a-90)*Math.PI/180;ctx.strokeStyle="rgba(180,220,255,0.06)";ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(lx+Math.cos(rad)*24,ly+Math.sin(rad)*24);ctx.lineTo(lx+Math.cos(rad)*30,ly+Math.sin(rad)*30);ctx.stroke();}
+  var PR=PLATFORM_R; // platform circle radius
 
-  if(launcher.cooldown>0)return;
+  // ── PLATFORM CIRCLE ──
+  // dark fill
+  ctx.fillStyle="rgba(10,12,28,0.7)";
+  ctx.beginPath();ctx.arc(lx,ly,PR,0,6.28);ctx.fill();
+  // outer ring
+  ctx.strokeStyle="rgba(180,220,255,0.2)";ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(lx,ly,PR,0,6.28);ctx.stroke();
+  // subtle inner ring
+  ctx.strokeStyle="rgba(180,220,255,0.06)";ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.arc(lx,ly,PR*0.65,0,6.28);ctx.stroke();
+  // crosshair dots at 4 compass points
+  for(var ci=0;ci<4;ci++){var ca=ci*1.571;var cx2=lx+Math.cos(ca)*(PR-4),cy2=ly+Math.sin(ca)*(PR-4);ctx.fillStyle="rgba(180,220,255,0.15)";ctx.beginPath();ctx.arc(cx2,cy2,1.2,0,6.28);ctx.fill();}
 
-  var pr=launcher.nextR;
-  var previewX=lx,previewY=ly-pr-6;
-
-  if(launcher.pulling){
-    var lp=getLaunchParams();
-    previewX=lp.orbX;previewY=lp.orbY;
-    var power=lp.power;
-
-    // elastic line base to orb
-    ctx.strokeStyle=rgba([120,180,255],0.12+power*0.12);ctx.lineWidth=0.8;
-    ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(previewX,previewY);ctx.stroke();
-
-    // LEADER LINE — simulated trajectory, brighter and longer with more power
-    var numPts=Math.floor(15+power*50);
-    var traj=simulateTraj(lx,ly-pr-6,lp.vx,lp.vy,numPts);
-    if(traj.length>2){
-      // draw solid fading line
-      for(var i=1;i<traj.length;i++){
-        var fade=1-(i/traj.length);
-        var alpha=fade*fade*(0.15+power*0.35);
-        if(alpha<0.01)continue;
-        // color shifts warmer with more power
-        var lineCol=l3([100,200,255],[255,180,80],power);
-        ctx.strokeStyle=rgba(lineCol,alpha);
-        ctx.lineWidth=1.2*fade+0.3;
-        ctx.beginPath();
-        ctx.moveTo(traj[i-1].x,traj[i-1].y);
-        ctx.lineTo(traj[i].x,traj[i].y);
-        ctx.stroke();
-      }
-      // small dot at end of trajectory
-      var last=traj[traj.length-1];
-      ctx.fillStyle=rgba(l3([100,200,255],[255,180,80],power),0.15+power*0.2);
-      ctx.beginPath();ctx.arc(last.x,last.y,2+power*2,0,6.28);ctx.fill();
-    }
-
-    // power glow around preview
-    if(power>0.1){
-      var pg=ctx.createRadialGradient(previewX,previewY,pr,previewX,previewY,pr+6+power*14);
-      pg.addColorStop(0,rgba(l3([100,200,255],[255,180,80],power),0.1+power*0.15));
-      pg.addColorStop(1,"rgba(0,0,0,0)");
-      ctx.fillStyle=pg;ctx.beginPath();ctx.arc(previewX,previewY,pr+6+power*14,0,6.28);ctx.fill();
-    }
+  // ── COOLDOWN RING — sits just outside platform ──
+  if(launcher.cooldown>0){
+    var coolProg=1-(launcher.cooldown/launcher.maxCooldown);
+    var ringR=PR+7;
+    ctx.strokeStyle="rgba(180,220,255,0.08)";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR,0,6.28);ctx.stroke();
+    ctx.strokeStyle="rgba(100,200,255,0.5)";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR,-Math.PI/2,-Math.PI/2+coolProg*6.28);ctx.stroke();
+    // grey orb centered in platform
+    var pr2=Math.min(launcher.nextR,PR*0.75);
+    var greyG=ctx.createRadialGradient(lx-pr2*0.2,ly-pr2*0.2,0,lx,ly,pr2);
+    greyG.addColorStop(0,"rgba(110,110,125,0.65)");greyG.addColorStop(1,"rgba(40,40,55,0.55)");
+    ctx.fillStyle=greyG;ctx.beginPath();ctx.arc(lx,ly,pr2,0,6.28);ctx.fill();
+    ctx.strokeStyle="rgba(140,140,160,0.2)";ctx.lineWidth=0.7;ctx.beginPath();ctx.arc(lx,ly,pr2,0,6.28);ctx.stroke();
+    return;
   }
 
-  // launcher needs-more glow + badge
-  var needMore=liveOrbCount()<3&&launcher.cooldown<=0&&!launcher.pulling;
+  // ── READY STATE ──
+  var pr=Math.min(launcher.nextR,PR*0.75); // orb radius capped to fit platform
+  var previewX=lx,previewY=ly;             // orb always at platform center
+
+  // needs-more glow + X/3 badge
+  var needMore=liveOrbCount()<3&&!launcher.pulling;
   if(needMore){
     var pulse=0.5+Math.sin(time*0.003)*0.35;
     var pg2=ctx.createRadialGradient(lx,ly,0,lx,ly,LAUNCH_ZONE_R);
-    pg2.addColorStop(0,'rgba(255,200,80,'+(pulse*0.12)+')');
-    pg2.addColorStop(1,'rgba(255,200,80,0)');
+    pg2.addColorStop(0,'rgba(255,200,80,'+(pulse*0.12)+')');pg2.addColorStop(1,'rgba(255,200,80,0)');
     ctx.fillStyle=pg2;ctx.beginPath();ctx.arc(lx,ly,LAUNCH_ZONE_R,0,6.28);ctx.fill();
-    // "X/3" badge above the cradle
     var nn=liveOrbCount();
-    ctx.font='bold 11px system-ui,sans-serif';
-    ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.font='bold 11px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
     ctx.fillStyle='rgba(255,200,80,'+(0.4+pulse*0.3)+')';
-    ctx.fillText(nn+'/3',lx,ly-LAUNCH_ZONE_R+6);
+    ctx.fillText(nn+'/3',lx,ly-PR-8);
     ctx.textAlign='left';ctx.textBaseline='top';
   }
 
-  // preview planet
+  if(launcher.pulling){
+    var lp=getLaunchParams();
+    // clamped pull position
+    previewX=lp.orbX;previewY=lp.orbY;
+    var power=lp.power;
+    var lineCol=l3([100,200,255],[255,160,60],power);
+
+    // ── PULL LINE: platform center → pulled orb (one solid line) ──
+    ctx.strokeStyle=rgba(lineCol,0.35+power*0.45);
+    ctx.lineWidth=1.5+power*1.0;ctx.lineCap="round";
+    ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(previewX,previewY);ctx.stroke();
+    ctx.lineCap="butt";
+
+    // ── LEADER LINE: orb position → predicted trajectory ──
+    var numPts=Math.floor(18+power*55);
+    var traj=simulateTraj(lx,ly,lp.vx,lp.vy,numPts);
+    if(traj.length>2){
+      for(var i=1;i<traj.length;i++){
+        var fade=1-(i/traj.length);
+        var alpha=fade*fade*(0.2+power*0.45);
+        if(alpha<0.01)continue;
+        ctx.strokeStyle=rgba(lineCol,alpha);
+        ctx.lineWidth=Math.max(0.3,1.4*fade);
+        ctx.beginPath();ctx.moveTo(traj[i-1].x,traj[i-1].y);ctx.lineTo(traj[i].x,traj[i].y);ctx.stroke();
+      }
+      var last=traj[traj.length-1];
+      ctx.fillStyle=rgba(lineCol,0.2+power*0.25);
+      ctx.beginPath();ctx.arc(last.x,last.y,2+power*2.5,0,6.28);ctx.fill();
+    }
+
+    // power glow around pulled orb
+    if(power>0.08){
+      var pg=ctx.createRadialGradient(previewX,previewY,pr,previewX,previewY,pr+5+power*16);
+      pg.addColorStop(0,rgba(lineCol,0.08+power*0.14));pg.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle=pg;ctx.beginPath();ctx.arc(previewX,previewY,pr+5+power*16,0,6.28);ctx.fill();
+    }
+  }
+
+  // ── PREVIEW PLANET (at pull position or platform center) ──
   var pc=stabCol(0),pt=PTYPES[launcher.nextPT];
   var tintC=[pc[0]*pt.surfTint[0],pc[1]*pt.surfTint[1],pc[2]*pt.surfTint[2]];
   var mg=ctx.createRadialGradient(previewX-pr*0.2,previewY-pr*0.2,0,previewX,previewY,pr);
-  mg.addColorStop(0,rgba(l3(tintC,[255,255,240],0.2),0.85));mg.addColorStop(0.4,rgba(tintC,0.8));mg.addColorStop(1,rgba([tintC[0]*0.2,tintC[1]*0.2,tintC[2]*0.2],0.9));
+  mg.addColorStop(0,rgba(l3(tintC,[255,255,240],0.2),0.9));mg.addColorStop(0.4,rgba(tintC,0.85));mg.addColorStop(1,rgba([tintC[0]*0.2,tintC[1]*0.2,tintC[2]*0.2],0.9));
   ctx.fillStyle=mg;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.fill();
-  ctx.strokeStyle=rgba(tintC,0.3);ctx.lineWidth=0.7;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.stroke();
+  ctx.strokeStyle=rgba(tintC,0.35);ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.stroke();
   if(pt.hasRing){ctx.save();ctx.translate(previewX,previewY);ctx.scale(1,0.2);ctx.strokeStyle=rgba(tintC,0.2);ctx.lineWidth=pr*0.1;ctx.beginPath();ctx.arc(0,0,pr*1.7,0,6.28);ctx.stroke();ctx.restore();}
 }
 
@@ -304,22 +642,90 @@ function launchPlanet(){
   var lp=getLaunchParams();
   if(lp.pullDist<15)return;
   var r=launcher.nextR;
-  orbs.push(makeOrb(launcher.x,launcher.y-r-6,lp.vx,lp.vy,r,false,launcher.nextPT));
+  orbs.push(makeOrb(launcher.x,launcher.y,lp.vx,lp.vy,r,false,launcher.nextPT));
   disturb(launcher.x,launcher.y,2+lp.power*2);
-  launcher.cooldown=800;launcherIdleTime=0;launcherIdleRings=[];setTimeout(queueNext,800);
+  var cd=Math.min(12000,2000+(Math.max(0,liveOrbCount()-3)*1000));
+launcher.cooldown=cd;launcher.maxCooldown=cd;
+launcherIdleTime=0;launcherIdleRings=[];queueNext();
 }
 
 /* === ORBS (same as v23-25) === */
 var orbs=[];var TRAIL_LEN=350;
-function initOrbs(){orbs=[];var sa=Math.min(W,H);var cfgs=[{r:7,d:sa*0.09+35,pt:0},{r:11,d:sa*0.15+35,pt:1},{r:16,d:sa*0.22+35,pt:2},{r:9,d:sa*0.30+35,pt:4},{r:20,d:sa*0.38+35,pt:3}];for(var i=0;i<cfgs.length;i++){var c=cfgs[i],ang=i*(6.28/cfgs.length)+Math.random()*0.3,v=orbV(c.r,c.d);orbs.push(makeOrb(sun.x+Math.cos(ang)*c.d,sun.y+Math.sin(ang)*c.d,-Math.sin(ang)*v,Math.cos(ang)*v,c.r,false,c.pt));}var moons=[{par:2,r:3.5,d:28},{par:4,r:4,d:34},{par:4,r:3,d:46}];for(var i=0;i<moons.length;i++){var m=moons[i],p=orbs[m.par],ma=Math.random()*6.28,ms=Math.sqrt(0.05*p.mass/m.d)*0.55;orbs.push(makeOrb(p.x+Math.cos(ma)*m.d,p.y+Math.sin(ma)*m.d,p.vx-Math.sin(ma)*ms,p.vy+Math.cos(ma)*ms,m.r,true,0));}}
-function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:(Math.random()-0.5)*0.0002,glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,ptype:PTYPES[pt],craterSeeds:im?[]:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,idleTime:Math.random()*3000};}
-function respawnOrb(o){var sa=Math.min(W,H),d=sa*(0.1+Math.random()*0.3)+35,ang=Math.random()*6.28,v=orbV(o.baseR,d);o.x=sun.x+Math.cos(ang)*d;o.y=sun.y+Math.sin(ang)*d;o.vx=-Math.sin(ang)*v;o.vy=Math.cos(ang)*v;o.dead=false;o.respawnTimer=0;o.glow=0.5;o.trail=[];o.instability=0;}
-function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);if(dd>1){var f=GM/(dd*dd);if(f>0.2)f=0.2;o.vx+=dx/dd*f*dt;o.vy+=dy/dd*f*dt;}if(dd<sun.r*0.6){o.dead=true;o.respawnTimer=2500+Math.random()*2000;disturb(sun.x,sun.y,2.5);score-=10;scorePenalty=1;penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1});return;}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;var bx=o.x-W/2,by=o.y-H/2,bd=Math.sqrt(bx*bx+by*by),mD=Math.min(W,H)*0.52;if(bd>mD){var ex=(bd-mD)/mD;o.vx-=bx/bd*ex*ex*0.005*dt;o.vy-=by/bd*ex*ex*0.005*dt;var dr=1-ex*0.0015*dt;if(dr<0.94)dr=0.94;o.vx*=dr;o.vy*=dr;}if(spd>6){o.vx=o.vx/spd*6;o.vy=o.vy/spd*6;}o.x+=o.vx*dt*TS;o.y+=o.vy*dt*TS;o.glow*=0.97;o.idleTime+=dt;if(o.idleTime>3000){var iw=Math.sin(o.idleTime*0.0015)*0.035;o.squishX=iw;o.squishY=-iw*0.5;}o.squishVX+=(-o.squishX)*0.08;o.squishVY+=(-o.squishY)*0.08;o.squishVX*=0.82;o.squishVY*=0.82;o.squishX+=o.squishVX;o.squishY+=o.squishVY;o.trail.push({x:o.x,y:o.y});if(o.trail.length>TRAIL_LEN)o.trail.shift();if(spd>0.05)disturb(o.x,o.y,spd*0.04);}
+function initOrbs(){
+  orbs=[];
+  var sa=Math.min(W,H);
+  // start with exactly 3 planets in stable orbits
+  var cfgs=[{r:9,d:sa*0.12+45,pt:0},{r:13,d:sa*0.22+45,pt:2},{r:11,d:sa*0.33+45,pt:4}];
+  for(var i=0;i<cfgs.length;i++){
+    var c=cfgs[i],ang=i*(6.28/3)+Math.random()*0.3,v=orbV(c.r,c.d);
+    orbs.push(makeOrb(sun.x+Math.cos(ang)*c.d,sun.y+Math.sin(ang)*c.d,-Math.sin(ang)*v,Math.cos(ang)*v,c.r,false,c.pt));
+  }
+}
+function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:(Math.random()-0.5)*0.0002,glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,ptype:PTYPES[pt],craterSeeds:im?[]:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,idleTime:Math.random()*3000,suctioning:false,suctionT:0};}
+function respawnOrb(o){var sa=Math.min(W,H),d=sa*(0.1+Math.random()*0.3)+35,ang=Math.random()*6.28,v=orbV(o.baseR,d);o.x=sun.x+Math.cos(ang)*d;o.y=sun.y+Math.sin(ang)*d;o.vx=-Math.sin(ang)*v;o.vy=Math.cos(ang)*v;o.dead=false;o.respawnTimer=0;o.glow=0.5;o.trail=[];o.instability=0;o.suctioning=false;o.suctionT=0;o.r=o.baseR;}
+function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);if(dd>1){var f=GM/(dd*dd);if(f>0.2)f=0.2;o.vx+=dx/dd*f*dt;o.vy+=dy/dd*f*dt;}// start suction when edge touches sun surface
+if(!o.suctioning&&dd<sun.r+o.baseR){
+  o.suctioning=true;o.suctionT=0;
+  disturb(sun.x,sun.y,1.5);
+  try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
+}
+if(o.suctioning){
+  o.suctionT+=dt/320; // ~320ms total
+  var st=o.suctionT;
+  // lerp position directly toward sun center — no velocity overshoot
+  var pullStr=0.08+st*0.18; // gentle at start, stronger at end
+  o.x+=(sun.x-o.x)*pullStr;
+  o.y+=(sun.y-o.y)*pullStr;
+  o.vx*=0.85;o.vy*=0.85; // kill existing velocity so it doesn't fly past
+  o.r=o.baseR*Math.max(0,1-st*st); // shrink
+  if(o.suctionT>=1||Math.sqrt((o.x-sun.x)**2+(o.y-sun.y)**2)<2){
+    o.dead=true;o.respawnTimer=0;
+    orbsEaten++;
+    var eatPenalty=orbsEaten*5;
+    score-=eatPenalty;scorePenalty=1;
+    penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:eatPenalty});
+    disturb(sun.x,sun.y,3.0);
+    addRing(sun.x,sun.y,1.5);
+    return;
+  }
+  return;
+}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;var bx=o.x-W/2,by=o.y-H/2,bd=Math.sqrt(bx*bx+by*by),mD=Math.max(W,H)*0.65;if(bd>mD){var ex=(bd-mD)/mD;o.vx-=bx/bd*ex*ex*0.01*dt;o.vy-=by/bd*ex*ex*0.01*dt;var dr=1-ex*0.003*dt;if(dr<0.90)dr=0.90;o.vx*=dr;o.vy*=dr;}if(spd>6){o.vx=o.vx/spd*6;o.vy=o.vy/spd*6;}o.x+=o.vx*dt*TS;o.y+=o.vy*dt*TS;o.glow*=0.97;o.idleTime+=dt;if(o.idleTime>3000){var iw=Math.sin(o.idleTime*0.0015)*0.035;o.squishX=iw;o.squishY=-iw*0.5;}o.squishVX+=(-o.squishX)*0.08;o.squishVY+=(-o.squishY)*0.08;o.squishVX*=0.82;o.squishVY*=0.82;o.squishX+=o.squishVX;o.squishY+=o.squishVY;o.trail.push({x:o.x,y:o.y});if(o.trail.length>TRAIL_LEN)o.trail.shift();if(spd>0.05)disturb(o.x,o.y,spd*0.04);}
 function drawTrail(o){if(o.dead||o.trail.length<4)return;var c=stabCol(o.instability),len=o.trail.length;for(var i=1;i<len;i++){var t=i/len,a=t*t*t*(o.isMoon?0.3:0.5);ctx.strokeStyle=rgba(c,a);ctx.lineWidth=o.isMoon?0.8:1.5;ctx.beginPath();ctx.moveTo(o.trail[i-1].x,o.trail[i-1].y);ctx.lineTo(o.trail[i].x,o.trail[i].y);ctx.stroke();}}
-function drawOrb(o){if(o.dead)return;var rx=o.baseR*(1+o.squishX*0.2),ry=o.baseR*(1+o.squishY*0.2);var sc=stabCol(o.instability),g=o.glow,r=Math.max(rx,ry),pt=o.ptype;var baseC=[sc[0]*pt.surfTint[0],sc[1]*pt.surfTint[1],sc[2]*pt.surfTint[2]];var sdx=sun.x-o.x,sdy=sun.y-o.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);var snx=sd>0?sdx/sd:0,sny=sd>0?sdy/sd:0;var li=Math.min(1,130/(sd*0.22+35)),lx=snx*r*0.35,ly=sny*r*0.35;if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,Math.PI,2*Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,Math.PI,2*Math.PI);ctx.stroke();ctx.restore();}ctx.save();ctx.translate(o.x,o.y);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();ctx.fillStyle=rgba([baseC[0]*0.2,baseC[1]*0.2,baseC[2]*0.2],1);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();var main=ctx.createRadialGradient(lx,ly,0,lx*0.3,ly*0.3,r*1.4);main.addColorStop(0,rgba(l3(baseC,[255,255,240],0.25*li),0.92));main.addColorStop(0.25,rgba(baseC,0.88));main.addColorStop(0.55,rgba([baseC[0]*0.45,baseC[1]*0.45,baseC[2]*0.45],0.92));main.addColorStop(0.85,rgba([baseC[0]*0.1,baseC[1]*0.1,baseC[2]*0.1],0.96));main.addColorStop(1,rgba([6,6,12],0.98));ctx.fillStyle=main;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.bands>0){ctx.save();ctx.rotate(o.angle*0.3);for(var b=0;b<pt.bands;b++){var by2=(b/(pt.bands-0.5)-0.5)*r*1.4;var bh=r*0.18+Math.sin(o.angle+b*2)*r*0.04;ctx.fillStyle=rgba(l3(baseC,[255,255,255],0.15+b*0.08),0.12*li);ctx.fillRect(-rx,by2-bh/2,rx*2,bh);}ctx.restore();}if(pt.hasCraters&&o.craterSeeds){for(var c2=0;c2<o.craterSeeds.length;c2++){var ca=o.craterSeeds[c2],cr=r*0.12+c2*r*0.05;var cx2=Math.cos(ca+o.angle*0.1)*r*0.35,cy2=Math.sin(ca+o.angle*0.1)*r*0.3;ctx.fillStyle=rgba([baseC[0]*0.3,baseC[1]*0.3,baseC[2]*0.3],0.2*li);ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();}}var hl=ctx.createRadialGradient(lx*0.8,ly*0.8,0,lx*0.5,ly*0.5,r*0.55);hl.addColorStop(0,rgba([255,255,250],0.14*li+g*0.07));hl.addColorStop(0.3,rgba([255,250,240],0.05*li));hl.addColorStop(1,"rgba(255,245,230,0)");ctx.fillStyle=hl;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.hasAtmo&&pt.atmoC){var ag=ctx.createRadialGradient(0,0,r*0.85,0,0,r*1.05);ag.addColorStop(0,rgba(pt.atmoC,0));ag.addColorStop(0.5,rgba(pt.atmoC,0.06*li));ag.addColorStop(1,rgba(pt.atmoC,0.02));ctx.fillStyle=ag;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();}var rimX=-snx*r*0.55,rimY=-sny*r*0.55;var rim=ctx.createRadialGradient(rimX,rimY,r*0.55,rimX,rimY,r*1.15);rim.addColorStop(0,rgba(baseC,0.07*li));rim.addColorStop(1,rgba(baseC,0));ctx.fillStyle=rim;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();ctx.restore();var la=Math.atan2(sny,snx);ctx.strokeStyle=rgba(l3(baseC,[255,240,220],0.2*li),0.3+g*0.15);ctx.lineWidth=0.9;ctx.beginPath();ctx.arc(o.x,o.y,rx,la-1.57,la+1.57);ctx.stroke();ctx.strokeStyle=rgba(baseC,0.08+g*0.04);ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(o.x,o.y,rx,la+1.57,la+4.71);ctx.stroke();if(pt.hasAtmo&&pt.atmoC){ctx.strokeStyle=rgba(pt.atmoC,0.08*li);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,rx+1.5,la-1.2,la+1.2);ctx.stroke();}if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,0,Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,0,Math.PI);ctx.stroke();ctx.restore();}}
+function drawOrb(o){if(o.dead)return;var effR=o.suctioning?o.r:o.baseR;var rx=effR*(1+o.squishX*0.2),ry=effR*(1+o.squishY*0.2);if(rx<0.5||ry<0.5)return;var sc=o.suctioning?stabCol(1.5):stabCol(o.instability),g=o.glow+(o.suctioning?0.5:0),r=Math.max(rx,ry),pt=o.ptype;var baseC=[sc[0]*pt.surfTint[0],sc[1]*pt.surfTint[1],sc[2]*pt.surfTint[2]];var sdx=sun.x-o.x,sdy=sun.y-o.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);var snx=sd>0?sdx/sd:0,sny=sd>0?sdy/sd:0;var li=Math.min(1,130/(sd*0.22+35)),lx=snx*r*0.35,ly=sny*r*0.35;if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,Math.PI,2*Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,Math.PI,2*Math.PI);ctx.stroke();ctx.restore();}ctx.save();ctx.translate(o.x,o.y);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();ctx.fillStyle=rgba([baseC[0]*0.2,baseC[1]*0.2,baseC[2]*0.2],1);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();var main=ctx.createRadialGradient(lx,ly,0,lx*0.3,ly*0.3,r*1.4);main.addColorStop(0,rgba(l3(baseC,[255,255,240],0.25*li),0.92));main.addColorStop(0.25,rgba(baseC,0.88));main.addColorStop(0.55,rgba([baseC[0]*0.45,baseC[1]*0.45,baseC[2]*0.45],0.92));main.addColorStop(0.85,rgba([baseC[0]*0.1,baseC[1]*0.1,baseC[2]*0.1],0.96));main.addColorStop(1,rgba([6,6,12],0.98));ctx.fillStyle=main;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.bands>0){ctx.save();ctx.rotate(o.angle*0.3);for(var b=0;b<pt.bands;b++){var by2=(b/(pt.bands-0.5)-0.5)*r*1.4;var bh=r*0.18+Math.sin(o.angle+b*2)*r*0.04;ctx.fillStyle=rgba(l3(baseC,[255,255,255],0.15+b*0.08),0.12*li);ctx.fillRect(-rx,by2-bh/2,rx*2,bh);}ctx.restore();}if(pt.hasCraters&&o.craterSeeds){for(var c2=0;c2<o.craterSeeds.length;c2++){var ca=o.craterSeeds[c2],cr=r*0.12+c2*r*0.05;var cx2=Math.cos(ca+o.angle*0.1)*r*0.35,cy2=Math.sin(ca+o.angle*0.1)*r*0.3;ctx.fillStyle=rgba([baseC[0]*0.3,baseC[1]*0.3,baseC[2]*0.3],0.2*li);ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();}}var hl=ctx.createRadialGradient(lx*0.8,ly*0.8,0,lx*0.5,ly*0.5,r*0.55);hl.addColorStop(0,rgba([255,255,250],0.14*li+g*0.07));hl.addColorStop(0.3,rgba([255,250,240],0.05*li));hl.addColorStop(1,"rgba(255,245,230,0)");ctx.fillStyle=hl;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.hasAtmo&&pt.atmoC){var ag=ctx.createRadialGradient(0,0,r*0.85,0,0,r*1.05);ag.addColorStop(0,rgba(pt.atmoC,0));ag.addColorStop(0.5,rgba(pt.atmoC,0.06*li));ag.addColorStop(1,rgba(pt.atmoC,0.02));ctx.fillStyle=ag;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();}var rimX=-snx*r*0.55,rimY=-sny*r*0.55;var rim=ctx.createRadialGradient(rimX,rimY,r*0.55,rimX,rimY,r*1.15);rim.addColorStop(0,rgba(baseC,0.07*li));rim.addColorStop(1,rgba(baseC,0));ctx.fillStyle=rim;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();ctx.restore();var la=Math.atan2(sny,snx);ctx.strokeStyle=rgba(l3(baseC,[255,240,220],0.2*li),0.3+g*0.15);ctx.lineWidth=0.9;ctx.beginPath();ctx.arc(o.x,o.y,rx,la-1.57,la+1.57);ctx.stroke();ctx.strokeStyle=rgba(baseC,0.08+g*0.04);ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(o.x,o.y,rx,la+1.57,la+4.71);ctx.stroke();if(pt.hasAtmo&&pt.atmoC){ctx.strokeStyle=rgba(pt.atmoC,0.08*li);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,rx+1.5,la-1.2,la+1.2);ctx.stroke();}if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,0,Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,0,Math.PI);ctx.stroke();ctx.restore();}}
 
-function applyPuck(){if(!puck.active)return;var pvx=puck.x-puck.px,pvy=puck.y-puck.py,pSpd=Math.sqrt(pvx*pvx+pvy*pvy);var sdx=sun.x-puck.x,sdy=sun.y-puck.y,sd=Math.sqrt(sdx*sdx+sdy*sdy),sMin=sun.r+PUCK_R;if(sd<sMin&&sd>0.1){var nx=sdx/sd,ny=sdy/sd;sun.x=puck.x+nx*sMin*1.005;sun.y=puck.y+ny*sMin*1.005;var blend=Math.min(0.25,pSpd*0.04);sun.vx+=(pvx*nx*nx-sun.vx*0.1)*blend;sun.vy+=(pvy*ny*ny-sun.vy*0.1)*blend;disturb(puck.x,puck.y,pSpd*0.04+0.3);try{if(navigator.vibrate)navigator.vibrate(6);}catch(e){}}for(var i=0;i<orbs.length;i++){var o=orbs[i];if(o.dead)continue;var dx=o.x-puck.x,dy=o.y-puck.y,d=Math.sqrt(dx*dx+dy*dy),md=o.baseR+PUCK_R;if(d<md&&d>0.1){var nx=dx/d,ny=dy/d;o.x=puck.x+nx*md*1.01;o.y=puck.y+ny*md*1.01;var impact=Math.max(0,pvx*nx+pvy*ny);var sS=Math.min(0.6,impact*0.3+pSpd*0.04);o.vx=o.vx*(1-sS)+nx*(impact*0.6+pSpd*0.2)*sS;o.vy=o.vy*(1-sS)+ny*(impact*0.6+pSpd*0.2)*sS;o.squishX+=nx*nx*0.1-ny*ny*0.04;o.squishY+=ny*ny*0.1-nx*nx*0.04;o.glow=Math.min(1,o.glow+0.15);o.idleTime=0;disturb(puck.x+nx*PUCK_R,puck.y+ny*PUCK_R,pSpd*0.03+0.3);try{if(navigator.vibrate)navigator.vibrate(6);}catch(e){}}}}
-function applyG(){for(var i=0;i<orbs.length;i++){if(orbs[i].dead)continue;for(var j=i+1;j<orbs.length;j++){if(orbs[j].dead)continue;var a=orbs[i],b=orbs[j];var dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy);var ms=a.baseR+b.baseR+5;if(d<ms&&d>0.1){var rp=0.02*(ms-d)/ms;var nx=dx/d,ny=dy/d;a.vx-=nx*rp;a.vy-=ny*rp;b.vx+=nx*rp;b.vy+=ny*rp;continue;}if(d>180)continue;var f=Math.min(0.00015*a.mass*b.mass/(d*d),0.002);var nx=dx/d,ny=dy/d;a.vx+=nx*f/a.mass;a.vy+=ny*f/a.mass;b.vx-=nx*f/b.mass;b.vy-=ny*f/b.mass;}}}
+function applyPuck(){
+  if(!well.active)return;
+  var wx=well.x,wy=well.y;
+  var wvx=wx-well.px,wvy=wy-well.py; // finger velocity
+  var wSpd=Math.sqrt(wvx*wvx+wvy*wvy);
+
+  // sun: pull toward well if in range
+  var sdx=wx-sun.x,sdy=wy-sun.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);
+  if(sd<WELL_ATTRACT&&sd>sun.r){
+    var sf=Math.min(0.003, WELL_STRENGTH*2/(sd+1));
+    sun.vx+=sdx/sd*sf;sun.vy+=sdy/sd*sf;
+  }
+
+  for(var i=0;i<orbs.length;i++){
+    var o=orbs[i];if(o.dead)continue;
+    var dx=wx-o.x,dy=wy-o.y,d=Math.sqrt(dx*dx+dy*dy);
+
+    if(d<WELL_CAPTURE){
+      // CAPTURED — orbit snaps to finger, moves with it
+      o.x+=(dx)*0.18;o.y+=(dy)*0.18; // pull toward center smoothly
+      o.vx=wvx*0.7;o.vy=wvy*0.7;    // inherit finger velocity
+      o.glow=Math.min(1,o.glow+0.04);
+      o.idleTime=0;
+      if(wSpd>0.5)disturb(wx,wy,wSpd*0.03);
+    } else if(d<WELL_ATTRACT){
+      // ATTRACT — gravitational pull toward finger
+      var f=WELL_STRENGTH/(d*d)*d*0.08;
+      f=Math.min(f,0.003);
+      o.vx+=dx/d*f;o.vy+=dy/d*f;
+    }
+  }
+}
+function applyG(){for(var i=0;i<orbs.length;i++){if(orbs[i].dead)continue;for(var j=i+1;j<orbs.length;j++){if(orbs[j].dead)continue;var a=orbs[i],b=orbs[j];var dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy);var ms=a.baseR+b.baseR+5;if(d<ms&&d>0.1){var rp=0.02*(ms-d)/ms;var nx=dx/d,ny=dy/d;a.vx-=nx*rp;a.vy-=ny*rp;b.vx+=nx*rp;b.vy+=ny*rp;continue;}if(d>180)continue;var f=Math.min(0.00015*a.mass*b.mass/(d*d),0.002);nx=dx/d;ny=dy/d;a.vx+=nx*f/a.mass;a.vy+=ny*f/a.mass;b.vx-=nx*f/b.mass;b.vy-=ny*f/b.mass;}}}
 function collide(){for(var p=0;p<3;p++){for(var i=0;i<orbs.length;i++){if(orbs[i].dead)continue;for(var j=i+1;j<orbs.length;j++){if(orbs[j].dead)continue;var a=orbs[i],b=orbs[j];var dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy),mn=a.baseR+b.baseR;if(d>=mn||d<0.1)continue;var nx=dx/d,ny=dy/d,ov=mn-d,tm=a.mass+b.mass;a.x-=nx*ov*(b.mass/tm)*0.55;a.y-=ny*ov*(b.mass/tm)*0.55;b.x+=nx*ov*(a.mass/tm)*0.55;b.y+=ny*ov*(a.mass/tm)*0.55;if(p===0){var dvx=a.vx-b.vx,dvy=a.vy-b.vy,dot=dvx*nx+dvy*ny;if(dot>0){var imp=dot/tm*0.12;a.vx-=imp*b.mass*nx;a.vy-=imp*b.mass*ny;b.vx+=imp*a.mass*nx;b.vy+=imp*a.mass*ny;a.glow=Math.min(1,a.glow+0.2);b.glow=Math.min(1,b.glow+0.2);disturb((a.x+b.x)/2,(a.y+b.y)/2,0.6);try{if(navigator.vibrate)navigator.vibrate(4);}catch(e){}}}}}}}
 
 var rings=[];function addRing(x,y,s){rings.push({x:x,y:y,rad:0,mx:55+s*75,life:1,spd:0.5+s*0.3})}
@@ -327,21 +733,31 @@ var rings=[];function addRing(x,y,s){rings.push({x:x,y:y,rad:0,mx:55+s*75,life:1
 var dragN=0;
 function gXY(e){var t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY}}
 function inLZ(p){return Math.sqrt((p.x-launcher.x)**2+(p.y-launcher.y)**2)<LAUNCH_ZONE_R&&launcher.cooldown<=0;}
-function inMenuZone(p){return p.x>=14&&p.x<=46&&p.y>=60&&p.y<=86;}
-function onD(e){e.preventDefault();var p=gXY(e);if(inMenuZone(p)){showMenu();return;}if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}else{puck.active=true;puck.x=p.x;puck.y=p.y;puck.px=p.x;puck.py=p.y;disturb(p.x,p.y,1.8);addRing(p.x,p.y,0.6);}}
-function onM(e){e.preventDefault();var p=gXY(e);if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!puck.active)return;puck.px=puck.x;puck.py=puck.y;puck.x=p.x;puck.y=p.y;var spd=Math.sqrt((puck.x-puck.px)**2+(puck.y-puck.py)**2);disturb(puck.x,puck.y,0.3+spd*0.015);dragN++;if(dragN%12===0)addRing(puck.x,puck.y,0.08+spd*0.005);}
-function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(puck.active){disturb(puck.x,puck.y,1.2);addRing(puck.x,puck.y,0.4);}puck.active=false;dragN=0;}
+function inMenuZone(p){return p.x>=W-56&&p.y>=48&&p.y<=82;}
+function onD(e){e.preventDefault();var p=gXY(e);if(inMenuZone(p)){showMenu();return;}if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}}
+function onM(e){e.preventDefault();var p=gXY(e);if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!well.active)return;well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;well.vx=well.x-well.px;well.vy=well.y-well.py;var spd=Math.sqrt(well.vx**2+well.vy**2);disturb(well.x,well.y,0.2+spd*0.01);dragN++;if(dragN%14===0)addRing(well.x,well.y,0.05+spd*0.004);}
+function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(well.active){disturb(well.x,well.y,0.8);addRing(well.x,well.y,0.3);}well.active=false;dragN=0;}
 canvas.addEventListener("touchstart",onD,{passive:false});canvas.addEventListener("touchmove",onM,{passive:false});canvas.addEventListener("touchend",onU,{passive:false});
-canvas.addEventListener("mousedown",onD,false);canvas.addEventListener("mousemove",function(e){if(puck.active||launcher.pulling)onM(e);},false);canvas.addEventListener("mouseup",onU,false);
+canvas.addEventListener("mousedown",onD,false);canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);canvas.addEventListener("mouseup",onU,false);
 
 function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0){initStars();initNebula();initGalaxies();}launcher.x=W/2;launcher.y=H-120;if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
 window.addEventListener("resize",resize);
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden){
+    if(!paused){paused=true;lastT=0;window._autoPaused=true;}
+  } else {
+    if(window._autoPaused){paused=false;lastT=0;window._autoPaused=false;}
+  }
+});
+window.addEventListener("pagehide",function(){paused=true;lastT=0;});
+window.addEventListener("pageshow",function(){if(!document.hidden){paused=false;lastT=0;}});
 
 
 /* === SCORING === */
 var score=0;
 var scoreOrbit=0;   // progress 0..1 toward next +1
-var scorePenalty=0; // flash timer for -10
+var scorePenalty=0; // flash timer for penalty
+var orbsEaten=0;    // how many eaten so far — multiplies penalty
 var scorePop=0;     // value of last pop (for float animation)
 var scorePopY=0;    // current y offset of pop
 var penaltyPops=[];  // [{x,y,vy,life}] floating -10 labels from sun
@@ -406,7 +822,7 @@ function drawScore(t){
     ctx.font="bold 16px system-ui,sans-serif";
     ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.fillStyle="rgba(255,60,60,"+pp.life+")";
-    ctx.fillText("-10",pp.x,pp.y);
+    ctx.fillText("−"+(pp.val||10),pp.x,pp.y);
     ctx.restore();
   }
 
@@ -441,18 +857,138 @@ function drawScore(t){
     ctx.beginPath();ctx.roundRect(barX,barY,barW,barH,2);ctx.fill();
   }
 
-  // "+n" label at right end of bar — shows what you'll earn
-  ctx.font="11px system-ui,sans-serif";
+  // "+n" label at right end of bar — gamified multiplier
   ctx.textBaseline="middle";
   var labelY=barY+barH/2;
   if(isWaiting){
+    ctx.font="11px system-ui,sans-serif";
     ctx.fillStyle="rgba(255,200,80,0.45)";
     ctx.fillText("+"+(3-n)+" more",barX+barW+8,labelY);
   } else {
+    // Extended color ramp: blue→teal→green→gold→orange→red→magenta→rainbow cycle
+    var tiers=[
+      [100,200,255], // 3  — blue
+      [60,220,200],  // 6  — teal
+      [80,220,100],  // 9  — green
+      [255,210,60],  // 12 — gold
+      [255,140,40],  // 15 — orange
+      [255,60,80],   // 20 — red/hot
+      [220,60,255],  // 25 — magenta
+      [100,140,255], // 30 — electric blue
+    ];
+    // above 30 it cycles through rainbow using hue rotation
+    var rainbowMode=n>=30;
+    var mc;
+    if(rainbowMode){
+      // full hue cycle — faster above 50
+      var hueSpd=n>=50?0.003:0.0015;
+      var hue=(t*hueSpd)%360;
+      var hr=Math.sin(hue*Math.PI/180)*127+128;
+      var hg=Math.sin((hue+120)*Math.PI/180)*127+128;
+      var hb=Math.sin((hue+240)*Math.PI/180)*127+128;
+      mc=[hr,hg,hb];
+    } else {
+      var stepsPerTier=3; // every 3 orbs = one tier
+      var tierIdx=Math.min(tiers.length-2,Math.floor((n-3)/stepsPerTier));
+      var tierFrac=((n-3)/stepsPerTier)-Math.floor((n-3)/stepsPerTier);
+      var c1=tiers[tierIdx],c2=tiers[Math.min(tiers.length-1,tierIdx+1)];
+      mc=[c1[0]+(c2[0]-c1[0])*tierFrac,c1[1]+(c2[1]-c1[1])*tierFrac,c1[2]+(c2[2]-c1[2])*tierFrac];
+    }
+
+    // pulse: faster and wilder at high counts
+    // n<10: gentle, n=20: bouncy, n=50+: frantic
+    var pulseSpd=0.002+Math.min(0.015,n*0.0004);
+    var pulseMag=Math.min(0.6,0.05+n*0.012);
+    var pulse=1+Math.sin(t*pulseSpd)*pulseMag;
+    // at very high counts add a second wobble for chaos
+    if(n>=20){pulse+=Math.sin(t*pulseSpd*2.3+1.2)*(pulseMag*0.4);}
+    if(n>=40){pulse+=Math.sin(t*pulseSpd*3.7+2.5)*(pulseMag*0.25);}
+    pulse=Math.max(0.3,pulse); // clamp so it never goes negative
+
+    var baseAlpha=Math.min(1.0,0.45+n*0.025);
+
+    // font grows with count, caps at 22px
+    var fontSize=Math.min(22,11+n*0.22);
+    ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
+
+    var multStr="+"+n;
+    var multX=barX+barW+6;
+
+    // glow — grows dramatically at high counts
+    var glowBlur=Math.min(28,Math.max(0,(n-4)*1.5))*Math.abs(pulse);
+    if(glowBlur>0.5){
+      ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.9)";
+      ctx.shadowBlur=glowBlur;
+    }
+
+    // at 50+ add a second glow pass for extra intensity
+    if(n>=50){
+      ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.3)";
+      ctx.fillText(multStr,multX+Math.sin(t*0.008)*2,labelY+Math.cos(t*0.006)*1.5);
+    }
+
+    ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(Math.min(1,baseAlpha*pulse))+")";
+    ctx.fillText(multStr,multX,labelY);
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+
+    // orb icon — spins at high counts
+    var iconR=Math.min(7,3.5+n*0.07);
+    var iconAlpha=Math.min(0.9,0.35+n*0.025);
+    var iconX=multX+ctx.measureText(multStr).width+iconR+5;
+    // at 20+ the icon orbits slightly around its anchor
+    var iconOX=n>=20?Math.sin(t*0.005+1)*3:0;
+    var iconOY=n>=20?Math.cos(t*0.004)*2:0;
+    ctx.strokeStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+iconAlpha+")";
+    ctx.lineWidth=n>=15?1.5:1;
+    if(glowBlur>0.5){ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.7)";ctx.shadowBlur=glowBlur*0.6;}
+    ctx.beginPath();ctx.arc(iconX+iconOX,labelY+iconOY,iconR*Math.abs(pulse),0,6.28);ctx.stroke();
+    ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(iconAlpha*0.3)+")";
+    ctx.beginPath();ctx.arc(iconX+iconOX,labelY+iconOY,iconR*Math.abs(pulse),0,6.28);ctx.fill();
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+  }
+
+  // --- "add more orbs" message — floats above sun when waiting ---
+  if(isWaiting){
+    var msgPulse=0.45+Math.sin(t*0.003)*0.3;
+    ctx.save();
+    ctx.font="bold 12px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="bottom";
+    ctx.fillStyle="rgba(255,200,80,"+msgPulse+")";
+    ctx.fillText("launch more orbs to score",sun.x,sun.y-sun.r-14);
+    // little arrow pointing down toward sun
+    ctx.strokeStyle="rgba(255,200,80,"+(msgPulse*0.6)+")";ctx.lineWidth=1;ctx.lineCap="round";
+    var ax=sun.x,ay=sun.y-sun.r-6;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax,ay+5);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(ax-3,ay+2);ctx.lineTo(ax,ay+6);ctx.lineTo(ax+3,ay+2);ctx.stroke();
+    ctx.lineCap="butt";
+    ctx.restore();
+  }
+
+  // --- EATEN COUNTER: ☀ −5 × n = −total ---
+  if(orbsEaten>0){
+    var ey=barY+18;
+    ctx.textBaseline="middle";
+    var sx2=barX+6,sy2=ey,sunR=4.5;
+    // sun corona
+    ctx.strokeStyle="rgba(255,160,40,0.45)";ctx.lineWidth=0.7;
+    for(var si=0;si<8;si++){var sa=si*0.785;ctx.beginPath();ctx.moveTo(sx2+Math.cos(sa)*(sunR+1.5),sy2+Math.sin(sa)*(sunR+1.5));ctx.lineTo(sx2+Math.cos(sa)*(sunR+3),sy2+Math.sin(sa)*(sunR+3));ctx.stroke();}
+    // sun disc
+    var sg2=ctx.createRadialGradient(sx2-1,sy2-1,0,sx2,sy2,sunR);
+    sg2.addColorStop(0,"rgba(255,240,180,0.85)");sg2.addColorStop(0.5,"rgba(255,180,60,0.7)");sg2.addColorStop(1,"rgba(200,100,20,0.5)");
+    ctx.fillStyle=sg2;ctx.beginPath();ctx.arc(sx2,sy2,sunR,0,6.28);ctx.fill();
+    // equation: −5 × n = −total
+    var tx=barX+14;
+    ctx.font="11px system-ui,sans-serif";
+    ctx.fillStyle="rgba(255,100,80,0.65)";
+    ctx.fillText("−5",tx,ey);tx+=ctx.measureText("−5").width;
     ctx.fillStyle="rgba(255,255,255,0.25)";
-    ctx.fillText("+"+n,barX+barW+6,labelY);
-    // small orb icon after the +n
-    drawOrbIcon(barX+barW+6+ctx.measureText("+"+n).width+10,labelY,3.5,0.35);
+    ctx.fillText(" × ",tx,ey);tx+=ctx.measureText(" × ").width;
+    ctx.fillStyle="rgba(255,255,255,0.65)";
+    ctx.fillText(orbsEaten,tx,ey);tx+=ctx.measureText(orbsEaten).width;
+    ctx.fillStyle="rgba(255,255,255,0.25)";
+    ctx.fillText(" = ",tx,ey);tx+=ctx.measureText(" = ").width;
+    ctx.fillStyle="rgba(255,80,80,0.8)";
+    ctx.fillText("−"+(orbsEaten*5),tx,ey);
   }
 
   ctx.restore();
@@ -460,18 +996,47 @@ function drawScore(t){
 
 
 
-function drawMenuBtn(){
-  var bx=16,by=62,bw=28,bh=22,r=6;
-  ctx.fillStyle="rgba(255,255,255,0.06)";
-  ctx.beginPath();ctx.roundRect(bx,by,bw,bh,r);ctx.fill();
-  ctx.strokeStyle="rgba(255,255,255,0.04)";ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.roundRect(bx,by,bw,bh,r);ctx.stroke();
-  // three lines
-  ctx.strokeStyle="rgba(255,255,255,0.3)";ctx.lineWidth=1.2;ctx.lineCap="round";
-  for(var li=0;li<3;li++){
-    var lly=by+6+li*4;
-    ctx.beginPath();ctx.moveTo(bx+6,lly);ctx.lineTo(bx+bw-6,lly);ctx.stroke();
+
+function drawOffscreenIndicators(){
+  var margin=18,arrowSize=7;
+  for(var i=0;i<orbs.length;i++){
+    var o=orbs[i];if(o.dead)continue;
+    var offX=o.x<-o.baseR||o.x>W+o.baseR;
+    var offY=o.y<-o.baseR||o.y>H+o.baseR;
+    if(!offX&&!offY)continue;
+    // clamp to screen edge
+    var ex=Math.max(margin,Math.min(W-margin,o.x));
+    var ey=Math.max(margin,Math.min(H-margin,o.y));
+    var ang=Math.atan2(o.y-H/2,o.x-W/2);
+    // pin to edge
+    var px2,py2;
+    if(o.x<0){px2=margin;py2=Math.max(margin,Math.min(H-margin,o.y));}
+    else if(o.x>W){px2=W-margin;py2=Math.max(margin,Math.min(H-margin,o.y));}
+    else{px2=Math.max(margin,Math.min(W-margin,o.x));py2=o.y<0?margin:H-margin;}
+    var c=stabCol(o.instability);
+    ctx.save();ctx.translate(px2,py2);ctx.rotate(ang);
+    // orb icon
+    ctx.strokeStyle=rgba(c,0.7);ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(0,0,5,0,6.28);ctx.stroke();
+    ctx.fillStyle=rgba(c,0.25);ctx.beginPath();ctx.arc(0,0,5,0,6.28);ctx.fill();
+    // arrow pointing outward
+    ctx.fillStyle=rgba(c,0.6);
+    ctx.beginPath();
+    ctx.moveTo(10,0);ctx.lineTo(10-arrowSize,-arrowSize*0.6);ctx.lineTo(10-arrowSize,arrowSize*0.6);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
   }
+}
+
+function drawMenuBtn(){
+  // sits top-right, below the logo (logo is ~y:0-44, menu button at y:50)
+  var bw=36,bh=28,br=8;
+  var bx=W-16-bw,by=50;
+  ctx.fillStyle="rgba(255,255,255,0.07)";
+  ctx.strokeStyle="rgba(255,255,255,0.1)";ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.roundRect(bx,by,bw,bh,br);ctx.fill();ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,0.4)";ctx.lineWidth=1.3;ctx.lineCap="round";
+  for(var li=0;li<3;li++){var lly=by+7+li*5;ctx.beginPath();ctx.moveTo(bx+7,lly);ctx.lineTo(bx+bw-7,lly);ctx.stroke();}
   ctx.lineCap="butt";
 }
 
@@ -516,25 +1081,133 @@ function drawLogo(){
 
 
 /* === MENU / PAUSE === */
-var paused=false;
+function showTab(name){
+  ['game','howto','scores','install'].forEach(function(t){
+    var el=document.getElementById('tab-'+t);
+    if(el)el.classList.toggle('active',t===name);
+  });
+  document.querySelectorAll('.tab-btn').forEach(function(b){
+    var map={'game':'game','howto':'how to play','scores':'scores','install':'install'};
+    b.classList.toggle('active',b.textContent.trim()===map[name]);
+  });
+  if(name==='scores')renderLeaderboard();
+}
+
+/* === LOADING SCREEN === */
+function runLoadingBar(){
+  var bar=document.getElementById('loading-bar');
+  var overlay=document.getElementById('loading-overlay');
+  if(!bar||!overlay)return;
+  var pct=0;
+  var iv=setInterval(function(){
+    pct+=Math.random()*18+4;
+    if(pct>92)pct=92;
+    bar.style.width=pct+'%';
+  },120);
+  window.addEventListener('load',function(){
+    clearInterval(iv);
+    bar.style.width='100%';
+    bar.style.transition='width 0.3s ease';
+    setTimeout(function(){
+      overlay.style.opacity='0';
+      overlay.style.transition='opacity 0.4s ease';
+      setTimeout(function(){overlay.style.display='none';},400);
+    },300);
+  });
+}
+runLoadingBar();
+
+/* === LEADERBOARD === */
+var SCORE_KEY='orbit_scores_v1';
+var NAME_KEY='orbit_last_name';
+
+function getScores(){
+  try{return JSON.parse(localStorage.getItem(SCORE_KEY)||'[]');}catch(e){return[];}
+}
+function saveScores(arr){
+  try{localStorage.setItem(SCORE_KEY,JSON.stringify(arr));}catch(e){}
+}
+
+function renderLeaderboard(){
+  var list=document.getElementById('leaderboard-list');
+  var empty=document.getElementById('leaderboard-empty');
+  if(!list||!empty)return;
+  var scores=getScores();
+  if(scores.length===0){list.style.display='none';empty.style.display='block';return;}
+  empty.style.display='none';list.style.display='flex';
+  list.innerHTML=scores.map(function(s,i){
+    var medal=['🥇','🥈','🥉'][i]||(i+1)+'.';
+    var col=s.score<0?'rgba(255,100,80,0.8)':'rgba(255,255,255,0.85)';
+    return '<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;">'
+      +'<div style="font-size:16px;width:24px;text-align:center;">'+medal+'</div>'
+      +'<div style="flex:1;font-size:14px;font-weight:600;color:rgba(255,255,255,0.75);">'+escHtml(s.name)+'</div>'
+      +'<div style="font-size:18px;font-weight:700;font-family:monospace;color:'+col+';">'+s.score+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function clearScores(){
+  if(confirm('Clear all scores?')){saveScores([]);renderLeaderboard();}}
+
+/* === END GAME FLOW === */
+function endGame(){
+  paused=true;
+  document.getElementById('menu-overlay').style.display='none';
+  var overlay=document.getElementById('endgame-overlay');
+  overlay.style.display='flex';
+  document.getElementById('endgame-score').textContent=score;
+  document.getElementById('endgame-score').style.color=score<0?'rgba(255,100,80,0.9)':'white';
+  // prefill last used name
+  var lastName=localStorage.getItem(NAME_KEY)||'';
+  document.getElementById('name-input').value=lastName;
+  document.getElementById('name-input').focus();
+}
+
+function saveScore(){
+  var name=document.getElementById('name-input').value.trim()||'Anonymous';
+  localStorage.setItem(NAME_KEY,name);
+  var scores=getScores();
+  scores.push({name:name,score:score,date:new Date().toLocaleDateString()});
+  scores.sort(function(a,b){return b.score-a.score;});
+  scores=scores.slice(0,20); // keep top 20
+  saveScores(scores);
+  document.getElementById('endgame-overlay').style.display='none';
+  resetGame();
+}
+
+function skipSave(){
+  document.getElementById('endgame-overlay').style.display='none';
+  resetGame();
+}
 function showMenu(){
   paused=true;
   document.getElementById('menu-overlay').style.display='flex';
+  showTab('game');
 }
 function resumeGame(){
   paused=false;
   document.getElementById('menu-overlay').style.display='none';
-  lastT=0; // reset dt so no jump
+  lastT=0;
 }
 function resetGame(){
   paused=false;
   document.getElementById('menu-overlay').style.display='none';
-  // reset everything
-  score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];
-  orbs=[];rings=[];
-  sun.x=sun.homeX;sun.y=sun.homeY;sun.vx=0;sun.vy=0;
-  initW();initOrbs();queueNext();
+  score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];orbsEaten=0;
+  orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
+  well.active=false;launcher.pulling=false;launcher.cooldown=0;
+  sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;
+  sun.homeX=W/2;sun.homeY=H/2;
+  initOrbs();queueNext();
   sunPulsed=false;lastT=0;
+  // show intro again
+  document.getElementById('intro-overlay').style.display='flex';
+  paused=true;
+}
+function startGame(){
+  document.getElementById('intro-overlay').style.display='none';
+  paused=false;lastT=0;
 }
 
 /* === LAUNCHER IDLE HINT === */
@@ -558,27 +1231,55 @@ function tickLauncherIdle(dt){
 }
 
 function drawLauncherIdleHint(){
-  if(launcherIdleRings.length===0)return;
   var lx=launcher.x,ly=launcher.y;
+  if(launcherIdleTime<10000)return;
+  var pulse=0.5+Math.sin(launcherIdleTime*0.003)*0.5; // 0..1 pulse
+  
+  // pulsing glow around cradle
+  var glowR=LAUNCH_ZONE_R*(0.8+pulse*0.3);
+  var glow=ctx.createRadialGradient(lx,ly,0,lx,ly,glowR);
+  glow.addColorStop(0,'rgba(255,200,80,'+(0.06+pulse*0.08)+')');
+  glow.addColorStop(1,'rgba(255,200,80,0)');
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(lx,ly,glowR,0,6.28);ctx.fill();
+
+  // thick dashed arc showing launch zone
+  ctx.strokeStyle='rgba(255,200,80,'+(0.25+pulse*0.2)+')';
+  ctx.lineWidth=2+pulse*1.5;
+  ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.arc(lx,ly,22,Math.PI,2*Math.PI);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // animated finger/arrow pulling down
+  var fingerY=ly+12+pulse*18; // bounces down
+  var fingerAlpha=0.4+pulse*0.4;
+  ctx.strokeStyle='rgba(255,200,80,'+fingerAlpha+')';ctx.lineWidth=1.5;ctx.lineCap='round';
+  // downward arrow (pull gesture hint)
+  ctx.beginPath();ctx.moveTo(lx,ly+4);ctx.lineTo(lx,fingerY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(lx-5,fingerY-6);ctx.lineTo(lx,fingerY);ctx.lineTo(lx+5,fingerY-6);ctx.stroke();
+  ctx.lineCap='butt';
+
+  // ripple rings from cradle
   for(var i=0;i<launcherIdleRings.length;i++){
     var r=launcherIdleRings[i];
-    var progress=r.age/1800; // 0-1
-    var radius=20+progress*60;
-    var alpha=r.life*0.35;
-    // draw upward arc only (the launch arc)
-    ctx.strokeStyle="rgba(255,200,80,"+alpha+")";
-    ctx.lineWidth=1;
-    ctx.setLineDash([4,6]);
-    ctx.beginPath();
-    ctx.arc(lx,ly,radius,Math.PI,2*Math.PI);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    var prog=r.age/1800,alpha2=r.life*0.3;
+    ctx.strokeStyle='rgba(255,200,80,'+alpha2+')';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(lx,ly,22+prog*50,Math.PI,2*Math.PI);ctx.stroke();
   }
 }
 
-var lastT=0,time=0,sunPulsed=false;
-function frame(now){requestAnimationFrame(frame);if(paused){lastT=0;return;}if(lastT===0){lastT=now;return;}var dt=Math.min(now-lastT,40);lastT=now;time+=dt;if(launcher.cooldown>0)launcher.cooldown-=dt;tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}drawPuck();drawLauncherIdleHint();drawLauncher(time);drawScore(time);drawMenuBtn();drawLogo();}
+var lastT=0,time=0,sunPulsed=false,paused=true;
+function frame(now){requestAnimationFrame(frame);if(paused){lastT=0;return;}if(lastT===0){lastT=now;return;}var dt=Math.min(now-lastT,40);lastT=now;time+=dt;if(launcher.cooldown>0)launcher.cooldown-=dt;tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}drawPuck();drawLauncherIdleHint();drawLauncher(time);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
 resize();requestAnimationFrame(frame);
+// expose menu functions to global scope for onclick handlers
+window.startGame=startGame;
+window.resumeGame=resumeGame;
+window.resetGame=resetGame;
+window.showTab=showTab;
+window.showMenu=showMenu;
+window.endGame=endGame;
+window.saveScore=saveScore;
+window.skipSave=skipSave;
+window.clearScores=clearScores;
 })();
 </script>
 </body>

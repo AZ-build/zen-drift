@@ -124,7 +124,7 @@ canvas{display:block;position:fixed;top:0;left:0}
     </svg>
     <div style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
     <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:28px;">gravity sandbox</div>
-    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep orbs orbiting the sun. More orbs = faster points. But the sun is hungry — and every orb it eats costs <em>more</em> than the last.</p>
+    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep planets in stable orbit around the sun. More planets in a stable orbit = faster points. But the sun is hungry — and every orb it eats costs <em>more</em> than the last.</p>
     <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:32px;">
       <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
         <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> at the bottom to fire an orb — aim, release, repeat</span>
@@ -197,18 +197,18 @@ canvas{display:block;position:fixed;top:0;left:0}
   </div>
   <!-- HOW TO PLAY TAB -->
   <div id="tab-howto" class="tab-content">
-    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch orbs and keep them orbiting a sun. Orbs launched at the right speed settle into stable orbits. Too fast and they fly away. Too slow and the sun swallows them. Everything follows one rule: mass attracts mass.</p>
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch planets and keep them in stable orbit around a sun. Planets launched at the right speed settle into stable orbits. Too fast and they fly away. Too slow and the sun swallows them. Only blue and green orbits score — yellow and red don't count. Everything follows one rule: mass attracts mass.</p>
     <div class="how-section">
       <h3>Controls</h3>
       <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launch orbs</h4><p>Pull back on the launcher at the bottom. Angle left or right across 180°. Harder pull = faster launch.</p></div></div>
       <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby orbs are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
       <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Orbs that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
-      <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> = stable orbit. Colors shift through green → yellow → orange → <span style="color:#ff4444;">red</span> as orbits decay. Nudge red orbs to save them.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> and <span style="color:#22cc88;">green</span> = stable, scoring orbits. Yellow → orange → <span style="color:#ff4444;">red</span> = decaying, non-scoring. Nudge red orbs back to stability.</p></div></div>
     </div>
     <div class="how-section">
       <h3>Scoring</h3>
       <div class="score-pills">
-        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">per bar fill · n = orb count</div></div>
+        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">stable (blue/green) planets only</div></div>
         <div class="score-pill"><div class="val" style="color:#22cc88;">×n</div><div class="lbl">more orbs = bar fills faster</div></div>
         <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum orbs to start scoring</div></div>
         <div class="score-pill"><div class="val" style="color:#ff5555;">−5×n</div><div class="lbl">each eaten orb costs more</div></div>
@@ -270,7 +270,10 @@ var canvas=document.getElementById("c"),ctx=canvas.getContext("2d"),hint=documen
 var W=0,H=0,TS=0.05,GM=4.0;
 function orbV(r,d){return Math.sqrt(GM/(d*TS))*(1+Math.max(0,(14-r)*0.006));}
 function idealSpeed(d){return Math.sqrt(GM/d)*Math.sqrt(1/TS);}
-var sun={x:0,y:0,vx:0,vy:0,r:28,homeX:0,homeY:0};
+var SUN_BASE_R=28;
+var SUN_MAX_MASS=25;
+var sun={x:0,y:0,vx:0,vy:0,r:SUN_BASE_R,homeX:0,homeY:0,mass:0,maxMass:SUN_MAX_MASS};
+var blackHole={active:false,t:0,devourT:0,done:false};
 var well={active:false,x:0,y:0,px:0,py:0,vx:0,vy:0};
 var WELL_CAPTURE=32; // radius where planet locks to finger
 var WELL_ATTRACT=180; // radius of gravitational influence
@@ -285,12 +288,12 @@ function initW(){cols=Math.ceil(W/CELL)+4;rows=Math.ceil(H/CELL)+4;wH=new Float3
 function disturb(px,py,str){var cx=~~(px/CELL)+1,cy=~~(py/CELL)+1;for(var dy=-4;dy<=4;dy++)for(var dx=-4;dx<=4;dx++){var gx=cx+dx,gy=cy+dy;if(gx<0||gx>=cols||gy<0||gy>=rows)continue;var d=Math.sqrt(dx*dx+dy*dy);if(d>4)continue;wH[gy*cols+gx]+=str*(1-d/4)*(1-d/4);}}
 function stepW(){for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wV[i]+=((wH[i-1]+wH[i+1]+wH[i-cols]+wH[i+cols])*0.25-wH[i])*0.3;wV[i]*=0.94;}for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wH[i]+=wV[i];if(wH[i]>5)wH[i]=5;if(wH[i]<-5)wH[i]=-5;}for(var x=0;x<cols;x++){wH[x]=0;wV[x]=0;wH[(rows-1)*cols+x]=0;wV[(rows-1)*cols+x]=0;}for(var y=0;y<rows;y++){wH[y*cols]=0;wV[y*cols]=0;wH[y*cols+cols-1]=0;wV[y*cols+cols-1]=0;}}
 function wAt(px,py){var gxf=px/CELL+1,gyf=py/CELL+1,gx=~~gxf,gy=~~gyf;if(gx<0||gx>=cols-1||gy<0||gy>=rows-1)return 0;var fx=gxf-gx,fy=gyf-gy,i=gy*cols+gx;return wH[i]*(1-fx)*(1-fy)+wH[i+1]*fx*(1-fy)+wH[i+cols]*(1-fx)*fy+wH[i+cols+1]*fx*fy;}
-function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var s=14000/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.active){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;var fs=4000/(fd*fd+150);wx+=fdx/fd*fs;wy+=fdy/fd*fs;}return{x:wx,y:wy};}
+function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?Math.min(8,1+blackHole.t/500):1;var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.active){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;var fs=4000/(fd*fd+150);wx+=fdx/fd*fs;wy+=fdy/fd*fs;}return{x:wx,y:wy};}
 function drawGrid(t){
   var sp=22;
   // slow diagonal drift — solar system moving through space
-  var driftX=(t*0.0055)%sp;
-  var driftY=(t*0.0032)%sp;
+  var driftX=0;
+  var driftY=0;
 
   // horizontal lines (drift vertically)
   for(var py=-sp;py<H+sp;py+=sp){
@@ -454,8 +457,95 @@ function drawGalaxies(t){
   }
 }
 
+function triggerBlackHole(){
+  blackHole.active=true;blackHole.t=0;blackHole.devourT=0;blackHole.done=false;
+  paused=false; // keep physics running during BH
+}
+
+function drawBlackHole(t){
+  var sx=sun.x,sy=sun.y;
+  var phase=Math.min(1,blackHole.t/2000); // collapse phase 0-1
+  var R=sun.r*(1-phase*0.5); // shrinks to half during collapse
+
+  // EXTREME spacetime distortion rings — Interstellar-style accretion
+  var numRings=8;
+  for(var i=0;i<numRings;i++){
+    var ringT=(t*0.001+i*0.7)%6.28;
+    var rr=R*(1.5+i*0.9)+Math.sin(ringT)*4;
+    var tilt=0.25+i*0.04;
+    var alpha=Math.max(0,(0.35-i*0.035)*(0.5+phase*0.5));
+    ctx.save();ctx.translate(sx,sy);ctx.scale(1,tilt);
+    var rc=i<3?[255,180,80]:i<6?[200,100,255]:[100,180,255];
+    ctx.strokeStyle="rgba("+rc[0]+","+rc[1]+","+rc[2]+","+alpha+")";
+    ctx.lineWidth=2.5-i*0.2;
+    ctx.beginPath();ctx.arc(0,0,rr,0,6.28);ctx.stroke();
+    ctx.restore();
+  }
+
+  // photon ring — bright hot ring close to singularity
+  ctx.save();ctx.translate(sx,sy);
+  ctx.scale(1,0.3);
+  var pr2=ctx.createRadialGradient(0,0,R*0.9,0,0,R*1.4);
+  pr2.addColorStop(0,"rgba(255,220,100,0)");
+  pr2.addColorStop(0.4,"rgba(255,180,60,"+(0.3+phase*0.4)+")");
+  pr2.addColorStop(0.7,"rgba(255,120,20,"+(0.15+phase*0.2)+")");
+  pr2.addColorStop(1,"rgba(255,60,0,0)");
+  ctx.fillStyle=pr2;ctx.beginPath();ctx.arc(0,0,R*1.8,0,6.28);ctx.fill();
+  ctx.restore();
+
+  // singularity — pure black disc, grows with phase
+  var bhR=R*(0.3+phase*0.7);
+  var bhg=ctx.createRadialGradient(sx,sy,0,sx,sy,bhR*2);
+  bhg.addColorStop(0,"rgba(0,0,0,1)");
+  bhg.addColorStop(0.5,"rgba(0,0,0,0.95)");
+  bhg.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle=bhg;ctx.beginPath();ctx.arc(sx,sy,bhR*2,0,6.28);ctx.fill();
+
+  // gravitational lensing — warp grid lines heavily
+  // (handled by gWarp being called with amplified sun warp)
+
+  // done phase — fading text "game over" handled by endGame overlay
+}
+
+function updateBlackHole(dt){
+  if(!blackHole.active)return;
+  blackHole.t+=dt;
+  // phase 1: 0-2s — sun collapses inward
+  // phase 2: 2-5s — black hole devours all orbs one by one
+  // phase 3: 5-8s — fabric distortion + game over screen appears
+  if(blackHole.t>2000&&!blackHole.done){
+    blackHole.devourT+=dt;
+    if(blackHole.devourT>200){ // eat one orb every 200ms
+      blackHole.devourT=0;
+      var eaten=false;
+      for(var i=0;i<orbs.length;i++){
+        if(!orbs[i].dead&&!orbs[i].suctioning){
+          orbs[i].suctioning=true;orbs[i].suctionT=0;
+          // apply penalty for each devoured orb
+          orbsEaten++;var eatPenalty=orbsEaten*5;
+          score-=eatPenalty;scorePenalty=1;
+          penaltyPops.push({x:sun.x+(Math.random()-0.5)*30,y:sun.y-sun.r-10,vy:0,life:1,val:eatPenalty});
+          eaten=true;break;
+        }
+      }
+      if(!eaten){
+        blackHole.done=true;
+      }
+    }
+  }
+  if(blackHole.done&&blackHole.t>7000){
+    // show game over
+    endGame();
+    blackHole.active=false;
+  }
+}
+
 function updateSun(dt){var dx=sun.homeX-sun.x,dy=sun.homeY-sun.y;sun.vx+=dx*0.000003*dt;sun.vy+=dy*0.000003*dt;sun.vx*=0.998;sun.vy*=0.998;sun.x+=sun.vx*dt*TS;sun.y+=sun.vy*dt*TS;var m=sun.r*0.5;if(sun.x<-m){sun.x=-m;sun.vx=Math.abs(sun.vx)*0.3;}if(sun.x>W+m){sun.x=W+m;sun.vx=-Math.abs(sun.vx)*0.3;}if(sun.y<-m){sun.y=-m;sun.vy=Math.abs(sun.vy)*0.3;}if(sun.y>H+m){sun.y=H+m;sun.vy=-Math.abs(sun.vy)*0.3;}}
 function drawSun(t){
+  // BLACK HOLE MODE
+  if(blackHole.active){
+    drawBlackHole(t);return;
+  }
   var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02);
 
   // warm outer glow
@@ -553,10 +643,19 @@ function drawPuck(){
 var PTYPES=[{name:"rocky",bands:0,hasRing:false,hasCraters:true,hasAtmo:false,atmoC:null,surfTint:[0.9,0.85,0.8]},{name:"terr",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[100,180,255],surfTint:[0.7,0.8,1.0]},{name:"gas",bands:3,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[255,200,150],surfTint:[1.0,0.9,0.7]},{name:"ringed",bands:2,hasRing:true,hasCraters:false,hasAtmo:false,atmoC:null,surfTint:[0.85,0.9,1.0]},{name:"ice",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[150,220,255],surfTint:[0.8,0.95,1.0]}];
 
 /* === LAUNCHER === */
-var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000};
+var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0};
 var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=2.0;
 var PLATFORM_R=22; // full circle platform radius
-function queueNext(){launcher.nextR=6+Math.floor(Math.random()*16);launcher.nextPT=Math.floor(Math.random()*PTYPES.length);}
+function queueNext(){
+  launcher.nextR=6+Math.floor(Math.random()*16);
+  launcher.nextPT=Math.floor(Math.random()*PTYPES.length);
+  launcher.launchNum++;
+  // escalating cooldown: 1st=10s, 2nd=20s, 3rd=30s... cap at 60s
+  var cd=Math.min(60000,launcher.launchNum*10000);
+  launcher.cooldown=cd;launcher.maxCooldown=cd;
+  // once ready, player has 10s to launch before auto-fire
+  launcher.launchWindow=0;launcher.launchWindowMax=10000;
+}
 
 function getLaunchParams(){
   var pdx=launcher.pullX-launcher.x,pdy=launcher.pullY-launcher.y;
@@ -597,7 +696,7 @@ function drawLauncher(t){
   // crosshair dots at 4 compass points
   for(var ci=0;ci<4;ci++){var ca=ci*1.571;var cx2=lx+Math.cos(ca)*(PR-4),cy2=ly+Math.sin(ca)*(PR-4);ctx.fillStyle="rgba(180,220,255,0.15)";ctx.beginPath();ctx.arc(cx2,cy2,1.2,0,6.28);ctx.fill();}
 
-  // ── COOLDOWN RING — sits just outside platform ──
+  // ── COOLDOWN RING — loading phase (blue fills up) ──
   if(launcher.cooldown>0){
     var coolProg=1-(launcher.cooldown/launcher.maxCooldown);
     var ringR=PR+7;
@@ -605,7 +704,6 @@ function drawLauncher(t){
     ctx.beginPath();ctx.arc(lx,ly,ringR,0,6.28);ctx.stroke();
     ctx.strokeStyle="rgba(100,200,255,0.5)";ctx.lineWidth=2.5;
     ctx.beginPath();ctx.arc(lx,ly,ringR,-Math.PI/2,-Math.PI/2+coolProg*6.28);ctx.stroke();
-    // grey orb centered in platform
     var pr2=Math.min(launcher.nextR,PR*0.75);
     var greyG=ctx.createRadialGradient(lx-pr2*0.2,ly-pr2*0.2,0,lx,ly,pr2);
     greyG.addColorStop(0,"rgba(110,110,125,0.65)");greyG.addColorStop(1,"rgba(40,40,55,0.55)");
@@ -614,9 +712,44 @@ function drawLauncher(t){
     return;
   }
 
+  // ── LAUNCH WINDOW RING — countdown phase (red drains away) ──
+  if(launcher.launchWindow>0&&!launcher.pulling){
+    var winProg=1-(launcher.launchWindow/launcher.launchWindowMax);
+    var urgency=launcher.launchWindow/launcher.launchWindowMax; // 0=just opened, 1=about to fire
+    var ringR2=PR+7;
+    // background track
+    ctx.strokeStyle="rgba(255,80,60,0.12)";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR2,0,6.28);ctx.stroke();
+    // remaining time arc — shrinks as urgency grows
+    var rc=urgency>0.6?[255,60,40]:[255,160,60];
+    ctx.strokeStyle="rgba("+rc[0]+","+rc[1]+","+rc[2]+","+(0.4+urgency*0.45)+")";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR2,-Math.PI/2,-Math.PI/2+winProg*6.28);ctx.stroke();
+    // pulse when urgent
+    if(urgency>0.65){
+      var up=0.5+Math.sin(time*0.012)*0.5;
+      var ug=ctx.createRadialGradient(lx,ly,PR,lx,ly,PR+16);
+      ug.addColorStop(0,"rgba(255,80,40,"+(up*0.1*(urgency-0.5))+")");
+      ug.addColorStop(1,"rgba(255,40,20,0)");
+      ctx.fillStyle=ug;ctx.beginPath();ctx.arc(lx,ly,PR+16,0,6.28);ctx.fill();
+    }
+  }
+
   // ── READY STATE ──
   var pr=Math.min(launcher.nextR,PR*0.75); // orb radius capped to fit platform
   var previewX=lx,previewY=ly;             // orb always at platform center
+
+  // "READY" indicator — shown when orb is loaded and player hasn't touched yet
+  if(!launcher.pulling&&launcher.launchWindow<launcher.launchWindowMax){
+    var readyPulse=0.5+Math.sin(time*0.004)*0.3;
+    // urgency-based color: green when fresh, shifts to red
+    var urgFrac=launcher.launchWindow/launcher.launchWindowMax;
+    var readyCol=urgFrac<0.5?"rgba(100,255,160,"+readyPulse+")":"rgba(255,"+(~~(160-urgFrac*160))+",60,"+readyPulse+")";
+    ctx.font="bold 9px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="bottom";
+    ctx.fillStyle=readyCol;
+    ctx.fillText(urgFrac>0.6?"LAUNCH!":"READY",lx,ly-PR-10);
+    ctx.textAlign="left";ctx.textBaseline="top";
+  }
 
   // needs-more glow + X/3 badge
   var needMore=liveOrbCount()<3&&!launcher.pulling;
@@ -680,15 +813,34 @@ function drawLauncher(t){
   if(pt.hasRing){ctx.save();ctx.translate(previewX,previewY);ctx.scale(1,0.2);ctx.strokeStyle=rgba(tintC,0.2);ctx.lineWidth=pr*0.1;ctx.beginPath();ctx.arc(0,0,pr*1.7,0,6.28);ctx.stroke();ctx.restore();}
 }
 
+function autoLaunch(){
+  // fire toward sun automatically — punishes player for ignoring launcher
+  var r=launcher.nextR;
+  var dx=sun.x-launcher.x,dy=sun.y-launcher.y;
+  var dist=Math.sqrt(dx*dx+dy*dy);
+  // aim at sun with slight random spread so it's not always eaten
+  var spread=(Math.random()-0.5)*0.4;
+  var ang=Math.atan2(dy,dx)+spread;
+  var speed=0.5+Math.random()*0.4;
+  var vx=Math.cos(ang)*speed,vy=Math.sin(ang)*speed;
+  orbs.push(makeOrb(launcher.x,launcher.y,vx,vy,r,false,launcher.nextPT));
+  _orbsLaunched++;
+  disturb(launcher.x,launcher.y,3);
+  addRing(launcher.x,launcher.y,1.2);
+  launcherIdleTime=0;launcherIdleRings=[];
+  launcher.launchWindow=0;
+  queueNext();
+}
+
 function launchPlanet(){
   var lp=getLaunchParams();
   if(lp.pullDist<15)return;
   var r=launcher.nextR;
   orbs.push(makeOrb(launcher.x,launcher.y,lp.vx,lp.vy,r,false,launcher.nextPT));_orbsLaunched++;
   disturb(launcher.x,launcher.y,2+lp.power*2);
-  var cd=Math.min(12000,2000+(Math.max(0,liveOrbCount()-3)*1000));
-launcher.cooldown=cd;launcher.maxCooldown=cd;
-launcherIdleTime=0;launcherIdleRings=[];queueNext();
+  launcherIdleTime=0;launcherIdleRings=[];
+  launcher.launchWindow=0; // reset window — will be set by queueNext
+  queueNext();
 }
 
 /* === ORBS (same as v23-25) === */
@@ -723,6 +875,11 @@ if(o.suctioning){
   if(o.suctionT>=1||Math.sqrt((o.x-sun.x)**2+(o.y-sun.y)**2)<2){
     o.dead=true;o.respawnTimer=0;
     orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:orbsEaten*5,score:score});
+    // absorb orb mass — sun grows
+    var massGain=Math.max(0.3,o.baseR/30); // bigger orbs add more mass
+    sun.mass=Math.min(sun.maxMass,sun.mass+massGain);
+    sun.r=SUN_BASE_R+sun.mass*0.8;
+    if(sun.mass>=sun.maxMass&&!blackHole.active&&!blackHole.done)triggerBlackHole();
     var eatPenalty=orbsEaten*5;
     score-=eatPenalty;scorePenalty=1;
     penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:eatPenalty});
@@ -816,12 +973,29 @@ function liveOrbCount(){
   var c=0;for(var i=0;i<orbs.length;i++)if(!orbs[i].dead)c++;return c;
 }
 
+// only blue/teal/green orbs count toward the multiplier
+function stableOrbCount(){
+  var c=0;
+  for(var i=0;i<orbs.length;i++){
+    var o=orbs[i];
+    if(!o.dead&&!o.suctioning&&o.instability<0.38)c++;
+  }
+  return c;
+}
+
 function updateScore(dt){
-  var n=liveOrbCount();
-  var period=orbitPeriod(n);
-  if(period===Infinity){scoreOrbit=0;return;}
+  var total=liveOrbCount();
+  var stable=stableOrbCount();
+  // need at least 3 total orbs in flight to score
+  if(total<3){scoreOrbit=0;return;}
+  // speed based on total orbs, points based on stable orbs
+  var period=orbitPeriod(total);
   scoreOrbit+=dt/period;
-  if(scoreOrbit>=1){scoreOrbit-=1;score+=n;scorePop=n;}
+  if(scoreOrbit>=1){
+    scoreOrbit-=1;
+    var pts=Math.max(1,stable); // at least 1 if any in flight
+    score+=pts;scorePop=pts;
+  }
 }
 
 function drawOrbIcon(cx,cy,r,alpha){
@@ -837,6 +1011,7 @@ function drawOrbIcon(cx,cy,r,alpha){
 
 function drawScore(t){
   var n=liveOrbCount();
+  var ns=stableOrbCount(); // stable (blue/green) orbs
   var isNeg=score<0;
   var isWaiting=(n<3);
   var period=orbitPeriod(n);
@@ -953,8 +1128,10 @@ function drawScore(t){
     var fontSize=Math.min(22,11+n*0.22);
     ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
 
-    var multStr="+"+n;
+    var multStr="+"+ns;
     var multX=barX+barW+6;
+    // if some orbs are unstable, show total too
+    var showUnstable=(n-ns)>0&&n>0;
 
     // glow — grows dramatically at high counts
     var glowBlur=Math.min(28,Math.max(0,(n-4)*1.5))*Math.abs(pulse);
@@ -972,7 +1149,6 @@ function drawScore(t){
     ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(Math.min(1,baseAlpha*pulse))+")";
     ctx.fillText(multStr,multX,labelY);
     ctx.shadowBlur=0;ctx.shadowColor="transparent";
-
     // orb icon — spins at high counts
     var iconR=Math.min(7,3.5+n*0.07);
     var iconAlpha=Math.min(0.9,0.35+n*0.025);
@@ -987,6 +1163,14 @@ function drawScore(t){
     ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(iconAlpha*0.3)+")";
     ctx.beginPath();ctx.arc(iconX+iconOX,labelY+iconOY,iconR*Math.abs(pulse),0,6.28);ctx.fill();
     ctx.shadowBlur=0;ctx.shadowColor="transparent";
+    // unstable count — above the orb icon
+    if(showUnstable){
+      ctx.font="bold 9px system-ui,sans-serif";
+      ctx.fillStyle="rgba(255,110,50,0.75)";
+      ctx.textAlign="center";ctx.textBaseline="bottom";
+      ctx.fillText("−"+(n-ns),iconX+iconOX,labelY+iconOY-iconR*Math.abs(pulse)-1);
+      ctx.textAlign="left";ctx.textBaseline="top";
+    }
   }
 
   // --- "add more orbs" message — floats above sun when waiting ---
@@ -1006,31 +1190,67 @@ function drawScore(t){
     ctx.restore();
   }
 
-  // --- EATEN COUNTER: ☀ −5 × n = −total ---
+  // --- ROW 2: sun mass bar  (☀ mass ▰▰▰▱▱ ⚫) ---
+  var massPct=sun.mass/sun.maxMass;
+  var row2Y=barY+20; // extra gap from progress bar
+  ctx.textBaseline="middle";
+
+  // mini sun icon before "mass"
+  var sx2=barX+5,sy2=row2Y,sunR=4;
+  ctx.strokeStyle="rgba(255,160,40,0.4)";ctx.lineWidth=0.6;
+  for(var si=0;si<8;si++){var sa2=si*0.785;ctx.beginPath();ctx.moveTo(sx2+Math.cos(sa2)*(sunR+1),sy2+Math.sin(sa2)*(sunR+1));ctx.lineTo(sx2+Math.cos(sa2)*(sunR+2.5),sy2+Math.sin(sa2)*(sunR+2.5));ctx.stroke();}
+  var sg2=ctx.createRadialGradient(sx2-1,sy2-1,0,sx2,sy2,sunR);
+  sg2.addColorStop(0,"rgba(255,240,180,0.85)");sg2.addColorStop(1,"rgba(200,100,20,0.5)");
+  ctx.fillStyle=sg2;ctx.beginPath();ctx.arc(sx2,sy2,sunR,0,6.28);ctx.fill();
+  ctx.font="10px system-ui,sans-serif";
+  ctx.fillStyle="rgba(255,180,60,0.45)";
+  ctx.fillText("mass",barX+14,row2Y);
+
+  // mass bar
+  var mbarX=barX+44,mbarW=barW-30,mbarH=3;
+  ctx.fillStyle="rgba(255,255,255,0.06)";
+  ctx.beginPath();ctx.roundRect(mbarX,row2Y-mbarH/2,mbarW,mbarH,1);ctx.fill();
+  if(massPct>0){
+    var hc=massPct<0.5?l3([255,160,40],[255,60,20],massPct*2):l3([255,60,20],[180,0,80],(massPct-0.5)*2);
+    if(massPct>0.65){ctx.shadowColor=rgba(hc,0.6);ctx.shadowBlur=4;}
+    ctx.fillStyle=rgba(hc,0.75+massPct*0.2);
+    ctx.beginPath();ctx.roundRect(mbarX,row2Y-mbarH/2,massPct*mbarW,mbarH,1);ctx.fill();
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+  }
+  // black hole icon — white outline style so it's visible on dark bg
+  ctx.textBaseline="middle";
+  var bhVisible=massPct>0.8;
+  if(bhVisible){
+    ctx.font="bold 11px system-ui,sans-serif";
+    ctx.fillStyle="rgba(220,100,255,0.95)";
+    ctx.shadowColor="rgba(180,60,255,0.8)";ctx.shadowBlur=6;
+    ctx.fillText("⬤",mbarX+mbarW+4,row2Y); // filled circle
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+  } else {
+    // just a faint ring — visible but subtle
+    ctx.strokeStyle="rgba(255,255,255,0.22)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(mbarX+mbarW+9,row2Y,5,0,6.28);ctx.stroke();
+    // tiny black center
+    ctx.fillStyle="rgba(255,255,255,0.08)";
+    ctx.beginPath();ctx.arc(mbarX+mbarW+9,row2Y,3,0,6.28);ctx.fill();
+  }
+
+  // --- ROW 3: eaten equation (gap below mass bar) ---
+  var row3Y=row2Y+16;
+  ctx.textBaseline="middle";
   if(orbsEaten>0){
-    var ey=barY+18;
-    ctx.textBaseline="middle";
-    var sx2=barX+6,sy2=ey,sunR=4.5;
-    // sun corona
-    ctx.strokeStyle="rgba(255,160,40,0.45)";ctx.lineWidth=0.7;
-    for(var si=0;si<8;si++){var sa=si*0.785;ctx.beginPath();ctx.moveTo(sx2+Math.cos(sa)*(sunR+1.5),sy2+Math.sin(sa)*(sunR+1.5));ctx.lineTo(sx2+Math.cos(sa)*(sunR+3),sy2+Math.sin(sa)*(sunR+3));ctx.stroke();}
-    // sun disc
-    var sg2=ctx.createRadialGradient(sx2-1,sy2-1,0,sx2,sy2,sunR);
-    sg2.addColorStop(0,"rgba(255,240,180,0.85)");sg2.addColorStop(0.5,"rgba(255,180,60,0.7)");sg2.addColorStop(1,"rgba(200,100,20,0.5)");
-    ctx.fillStyle=sg2;ctx.beginPath();ctx.arc(sx2,sy2,sunR,0,6.28);ctx.fill();
-    // equation: −5 × n = −total
-    var tx=barX+14;
+    var etx=barX+5;
     ctx.font="11px system-ui,sans-serif";
-    ctx.fillStyle="rgba(255,100,80,0.65)";
-    ctx.fillText("−5",tx,ey);tx+=ctx.measureText("−5").width;
+    ctx.fillStyle="rgba(255,100,80,0.7)";
+    ctx.fillText("−5",etx,row3Y);etx+=ctx.measureText("−5").width;
     ctx.fillStyle="rgba(255,255,255,0.25)";
-    ctx.fillText(" × ",tx,ey);tx+=ctx.measureText(" × ").width;
-    ctx.fillStyle="rgba(255,255,255,0.65)";
-    ctx.fillText(orbsEaten,tx,ey);tx+=ctx.measureText(orbsEaten).width;
+    ctx.fillText(" × ",etx,row3Y);etx+=ctx.measureText(" × ").width;
+    ctx.fillStyle="rgba(255,255,255,0.7)";
+    ctx.fillText(orbsEaten,etx,row3Y);etx+=ctx.measureText(String(orbsEaten)).width;
     ctx.fillStyle="rgba(255,255,255,0.25)";
-    ctx.fillText(" = ",tx,ey);tx+=ctx.measureText(" = ").width;
-    ctx.fillStyle="rgba(255,80,80,0.8)";
-    ctx.fillText("−"+(orbsEaten*5),tx,ey);
+    ctx.fillText(" = ",etx,row3Y);etx+=ctx.measureText(" = ").width;
+    ctx.fillStyle="rgba(255,80,80,0.85)";
+    ctx.fillText("−"+(orbsEaten*5),etx,row3Y);
   }
 
   ctx.restore();
@@ -1308,9 +1528,11 @@ function resetGame(){
   document.getElementById('menu-overlay').style.display='none';
   score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];orbsEaten=0;
   orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
-  well.active=false;launcher.pulling=false;launcher.cooldown=0;
+  well.active=false;launcher.pulling=false;launcher.cooldown=0;launcher.launchNum=0;launcher.launchWindow=0;
   sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;
   sun.homeX=W/2;sun.homeY=H/2;
+  sun.r=SUN_BASE_R;sun.mass=0;
+  blackHole.active=false;blackHole.t=0;blackHole.done=false;
   initOrbs();queueNext();
   sunPulsed=false;lastT=0;
   // show intro again
@@ -1329,7 +1551,7 @@ var launcherIdleTime=0;
 var launcherIdleRings=[];
 
 function tickLauncherIdle(dt){
-  if(launcher.pulling||launcher.cooldown>0){launcherIdleTime=0;launcherIdleRings=[];return;}
+  if(launcher.pulling||launcher.cooldown>0||launcher.launchWindow>0){launcherIdleTime=0;launcherIdleRings=[];return;}
   launcherIdleTime+=dt;
   if(launcherIdleTime>10000){
     // pulse a ghost arc every 1.8 seconds
@@ -1359,8 +1581,8 @@ function drawLauncherIdleHint(){
   // thick dashed arc showing launch zone
   ctx.strokeStyle='rgba(255,200,80,'+(0.25+pulse*0.2)+')';
   ctx.lineWidth=2+pulse*1.5;
-  ctx.setLineDash([6,5]);
-  ctx.beginPath();ctx.arc(lx,ly,22,Math.PI,2*Math.PI);ctx.stroke();
+  ctx.setLineDash([5,5]);
+  ctx.beginPath();ctx.arc(lx,ly,22,0,6.28);ctx.stroke();
   ctx.setLineDash([]);
 
   // animated finger/arrow pulling down
@@ -1377,12 +1599,23 @@ function drawLauncherIdleHint(){
     var r=launcherIdleRings[i];
     var prog=r.age/1800,alpha2=r.life*0.3;
     ctx.strokeStyle='rgba(255,200,80,'+alpha2+')';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.arc(lx,ly,22+prog*50,Math.PI,2*Math.PI);ctx.stroke();
+    ctx.beginPath();ctx.arc(lx,ly,22+prog*50,0,6.28);ctx.stroke();
   }
 }
 
 var lastT=0,time=0,sunPulsed=false,paused=true;
-function frame(now){requestAnimationFrame(frame);if(paused){lastT=0;return;}if(lastT===0){lastT=now;return;}var dt=Math.min(now-lastT,40);lastT=now;time+=dt;if(launcher.cooldown>0)launcher.cooldown-=dt;tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}drawPuck();drawLauncherIdleHint();drawLauncher(time);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
+function frame(now){requestAnimationFrame(frame);if(paused){lastT=0;return;}if(lastT===0){lastT=now;return;}var dt=Math.min(now-lastT,40);lastT=now;time+=dt;updateBlackHole(dt);
+if(launcher.cooldown>0){
+  launcher.cooldown-=dt;
+} else if(!launcher.pulling){
+  // cooldown done — tick the launch window
+  launcher.launchWindow+=dt;
+  if(launcher.launchWindow>=launcher.launchWindowMax){
+    // auto-fire toward sun — punish inaction
+    autoLaunch();
+  }
+}
+tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}drawPuck();drawLauncherIdleHint();drawLauncher(time);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
 resize();requestAnimationFrame(frame);
 // expose menu functions to global scope for onclick handlers
 window.startGame=startGame;

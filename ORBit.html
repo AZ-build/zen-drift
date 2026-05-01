@@ -126,19 +126,77 @@ canvas{display:block;position:fixed;top:0;left:0}
     <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:20px;">gravity sandbox</div>
     <p style="font-size:14px;color:rgba(255,255,255,0.55);line-height:1.6;margin-bottom:20px;">Keep planets in stable orbit. The more blue orbits you maintain, the faster your score climbs. But the sun grows every time it feeds — fill its mass bar and it collapses into a black hole.</p>
 
-    <!-- Start button BEFORE the hints so it's always visible first -->
-    <button onclick="startGame()" style="display:block;width:100%;padding:15px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:14px;color:white;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.5px;margin-bottom:24px;">Start ORBit</button>
+    <!-- Mode selection -->
+    <div style="display:flex;gap:10px;margin-bottom:24px;">
+      <button onclick="startGame(false)" style="flex:1;padding:16px 8px 12px;background:linear-gradient(145deg,rgba(51,153,255,0.18),rgba(180,60,255,0.18));border:1px solid rgba(255,255,255,0.15);border-radius:16px;color:white;font-family:inherit;cursor:pointer;transition:border-color 0.2s;">
+        <svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 6px;">
+  <circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+  <circle cx="24" cy="24" r="14" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <defs><radialGradient id="sbg" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="50%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+  <circle cx="24" cy="24" r="5" fill="url(#sbg)"/>
+  <circle cx="24" cy="10" r="3" fill="#3399ff" opacity="0.9"/>
+  <circle cx="35" cy="32" r="3.5" fill="#22cc88" opacity="0.9"/>
+  <circle cx="11" cy="29" r="2.5" fill="#cc44ff" opacity="0.9"/>
+  <rect x="8" y="40" width="32" height="3" rx="1.5" fill="rgba(255,255,255,0.1)"/>
+  <rect x="8" y="40" width="20" height="3" rx="1.5" fill="rgba(100,200,255,0.6)"/>
+</svg>
+        <div style="font-size:14px;font-weight:700;margin-bottom:2px;">ORBit</div>
+        <div style="font-size:11px;opacity:0.55;letter-spacing:1px;">score &amp; strategy</div>
+      </button>
+      <button onclick="startGame(true)" style="flex:1;padding:16px 8px 12px;background:rgba(100,220,255,0.06);border:1px solid rgba(100,220,255,0.2);border-radius:16px;color:rgba(100,220,255,0.9);font-family:inherit;cursor:pointer;transition:border-color 0.2s;">
+        <svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 6px;">
+  <defs>
+    <radialGradient id="cbg" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="50%" stop-color="#ffdd88"/><stop offset="100%" stop-color="#ff9922"/></radialGradient>
+  </defs>
+  <!-- gentle wave lines -->
+  <path d="M4 20 Q12 14 20 20 Q28 26 36 20 Q42 16 44 18" fill="none" stroke="rgba(100,200,255,0.25)" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M4 28 Q12 22 20 28 Q28 34 36 28 Q42 24 44 26" fill="none" stroke="rgba(100,200,255,0.18)" stroke-width="1" stroke-linecap="round"/>
+  <!-- small sun -->
+  <circle cx="14" cy="24" r="5" fill="url(#cbg)" opacity="0.9"/>
+  <!-- single planet drifting lazily -->
+  <circle cx="36" cy="18" r="4" fill="#3399ff" opacity="0.85"/>
+  <!-- faint orbit trail -->
+  <path d="M24 30 Q30 18 36 18" fill="none" stroke="rgba(51,153,255,0.3)" stroke-width="1" stroke-dasharray="2,3"/>
+</svg>
+        <div style="font-size:14px;font-weight:700;margin-bottom:2px;">Chill</div>
+        <div style="font-size:11px;opacity:0.55;letter-spacing:1px;color:rgba(100,220,255,0.6);">pure physics</div>
+      </button>
+    </div>
 
     <!-- Hints below the button — visible if screen is tall enough, scrollable if not -->
     <div style="display:flex;flex-direction:column;gap:10px;text-align:left;padding-bottom:16px;">
       <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> to fire — launch window counts down, or it auto-fires toward the sun</span>
+        <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;margin-top:1px;" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+      <circle cx="12" cy="12" r="6" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.8"/>
+      <circle cx="12" cy="12" r="3" fill="#ffcc55"/>
+      <!-- launcher arm pointing down -->
+      <line x1="12" y1="17" x2="12" y2="21" stroke="rgba(100,200,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+      <polyline points="10,19 12,22 14,19" fill="none" stroke="rgba(100,200,255,0.6)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> to fire — launch window counts down, or it auto-fires toward the sun</span>
       </div>
       <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to pull nearby planets with gravity — flick to sling them</span>
+        <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;margin-top:1px;" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="8" fill="none" stroke="rgba(200,120,255,0.35)" stroke-width="1" stroke-dasharray="2,3"/>
+      <circle cx="12" cy="12" r="4.5" fill="none" stroke="rgba(200,120,255,0.5)" stroke-width="0.8" stroke-dasharray="2,2"/>
+      <circle cx="12" cy="12" r="1.8" fill="rgba(200,120,255,0.7)"/>
+      <circle cx="19" cy="9" r="2" fill="#3399ff" opacity="0.8"/>
+    </svg><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to pull nearby planets with gravity — flick to sling them</span>
       </div>
       <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0;">⚫</span><span><strong style="color:rgba(200,80,255,0.9);">Watch the sun's mass bar</strong> — fill it and it becomes a black hole. Game over.</span>
+        <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;margin-top:1px;" xmlns="http://www.w3.org/2000/svg">
+      <defs><radialGradient id="hsg" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="50%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+      <!-- spikes -->
+      <line x1="12" y1="2" x2="12" y2="5" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="12" y1="19" x2="12" y2="22" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="2" y1="12" x2="5" y2="12" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="19" y1="12" x2="22" y2="12" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="4.9" y1="4.9" x2="7" y2="7" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="17" y1="17" x2="19.1" y2="19.1" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="19.1" y1="4.9" x2="17" y2="7" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <line x1="7" y1="17" x2="4.9" y2="19.1" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="5.5" fill="url(#hsg)"/>
+    </svg><span><strong style="color:rgba(255,160,40,0.95);">Watch the sun's mass bar</strong> — feed it too much and it collapses into a black hole.</span>
       </div>
     </div>
   </div>
@@ -190,9 +248,22 @@ canvas{display:block;position:fixed;top:0;left:0}
   </div>
   <!-- GAME TAB -->
   <div id="tab-game" class="tab-content active">
-    <button class="menu-action" onclick="resumeGame()">▶  Resume</button>
-    <button class="menu-action" onclick="endGame()">🏁  End &amp; Save Score</button>
-    <button class="menu-action" onclick="resetGame()">↺  Reset game</button>
+    <button class="menu-action" onclick="resumeGame()" style="display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 20 20" width="16" height="16"><polygon points="4,2 16,10 4,18" fill="rgba(255,255,255,0.7)"/></svg>Resume
+    </button>
+    <button class="menu-action" onclick="endGame()" style="display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 20 20" width="16" height="16">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+        <line x1="10" y1="5" x2="10" y2="10" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="10" y1="10" x2="14" y2="13" stroke="rgba(100,200,255,0.8)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>End &amp; Save Score
+    </button>
+    <button class="menu-action" onclick="resetGame()" style="display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 20 20" width="16" height="16">
+        <path d="M15 4 A7 7 0 1 0 17 10" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+        <polyline points="14,1 15,4 18,3" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>Reset game
+    </button>
     <div style="height:1px;background:rgba(255,255,255,0.06);margin:16px 0;"></div>
     <div style="font-size:12px;color:rgba(255,255,255,0.2);letter-spacing:3px;text-transform:lowercase;margin-bottom:10px;">coming soon</div>
     <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🔊  Sound</button>
@@ -717,12 +788,13 @@ var PTYPES=[{name:"rocky",bands:0,hasRing:false,hasCraters:true,hasAtmo:false,at
 
 /* === LAUNCHER === */
 var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0};
-var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=2.0;
+var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=1.0;
 var PLATFORM_R=22; // full circle platform radius
 function queueNext(){
   launcher.nextR=6+Math.floor(Math.random()*16);
   launcher.nextPT=Math.floor(Math.random()*PTYPES.length);
   launcher.launchNum++;
+  if(chillMode){launcher.cooldown=0;launcher.maxCooldown=1;launcher.launchWindow=0;return;}
   // cooldown based on how many extra orbs beyond 3 are on the board
   // 3 orbs = 2s (fast), each extra orb adds 2s, cap at 20s
   var extra=Math.max(0,liveOrbCount()-3);
@@ -739,7 +811,7 @@ function getLaunchParams(){
   var pullAng=Math.atan2(pdy,pdx); // full 360
   var power=pullDist/MAX_PULL;
   var launchAng=pullAng+Math.PI;
-  var speed=0.4+power*(MAX_SPEED-0.4);
+  var speed=0.2+power*(MAX_SPEED-0.2);
   return{pullDist:pullDist,pullAng:pullAng,launchAng:launchAng,power:power,speed:speed,
     orbX:launcher.x+Math.cos(pullAng)*pullDist,orbY:launcher.y+Math.sin(pullAng)*pullDist, // from center
     vx:Math.cos(launchAng)*speed,vy:Math.sin(launchAng)*speed};
@@ -788,7 +860,7 @@ function drawLauncher(t){
   }
 
   // ── LAUNCH WINDOW RING — countdown phase (red drains away) ──
-  if(launcher.launchWindow>0&&!launcher.pulling){
+  if(!chillMode&&launcher.launchWindow>0&&!launcher.pulling){
     var winProg=1-(launcher.launchWindow/launcher.launchWindowMax);
     var urgency=launcher.launchWindow/launcher.launchWindowMax; // 0=just opened, 1=about to fire
     var ringR2=PR+7;
@@ -814,7 +886,7 @@ function drawLauncher(t){
   var previewX=lx,previewY=ly;             // orb always at platform center
 
   // "READY" indicator — shown when orb is loaded and player hasn't touched yet
-  if(!launcher.pulling&&launcher.launchWindow<launcher.launchWindowMax){
+  if(!chillMode&&!launcher.pulling&&launcher.launchWindow<launcher.launchWindowMax){
     var readyPulse=0.5+Math.sin(time*0.004)*0.3;
     // urgency-based color: green when fresh, shifts to red
     var urgFrac=launcher.launchWindow/launcher.launchWindowMax;
@@ -952,9 +1024,11 @@ if(o.suctioning){
     orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:orbsEaten*5,score:score});
     // absorb orb mass — sun grows
     var massGain=Math.max(0.3,o.baseR/30); // bigger orbs add more mass
-    sun.mass=Math.min(sun.maxMass,sun.mass+massGain);
-    sun.r=SUN_BASE_R+sun.mass*0.8;
-    if(sun.mass>=sun.maxMass&&!blackHole.active&&!blackHole.done)triggerBlackHole();
+    if(!chillMode){
+      sun.mass=Math.min(sun.maxMass,sun.mass+massGain);
+      sun.r=SUN_BASE_R+sun.mass*0.8;
+      if(sun.mass>=sun.maxMass&&!blackHole.active&&!blackHole.done)triggerBlackHole();
+    }
     var eatPenalty=orbsEaten*5;
     score-=eatPenalty;scorePenalty=1;
     penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:eatPenalty});
@@ -1103,6 +1177,7 @@ function stableOrbCount(){
 }
 
 function updateScore(dt){
+  if(chillMode)return;
   var total=liveOrbCount();
   var stable=stableOrbCount();
   // need at least 3 total orbs in flight to score
@@ -1129,6 +1204,11 @@ function drawOrbIcon(cx,cy,r,alpha){
 }
 
 function drawScore(t){
+  if(chillMode){
+    ctx.save();ctx.font="11px system-ui,sans-serif";ctx.textAlign="left";
+    ctx.fillStyle="rgba(100,220,255,0.4)";ctx.textBaseline="top";
+    ctx.fillText("🌊  chill mode",16,22);ctx.restore();return;
+  }
   var n=liveOrbCount();
   var ns=stableOrbCount(); // stable (blue/green) orbs
   var isNeg=score<0;
@@ -1485,6 +1565,21 @@ function runLoadingBar(){
 }
 runLoadingBar();
 
+
+/* === CHILL MODE === */
+var chillMode=false;
+function toggleChill(){
+  chillMode=!chillMode;
+  // reset game state when switching modes
+  score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];
+  orbsEaten=0;sun.mass=0;sun.r=SUN_BASE_R;
+  blackHole.active=false;blackHole.t=0;blackHole.done=false;blackHole.flash=0;
+  orbs=[];rings=[];launcher.launchNum=0;launcher.launchWindow=0;launcher.cooldown=0;
+  sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;sun.homeX=W/2;sun.homeY=H/2;
+  initOrbs();queueNext();
+  resumeGame();
+}
+
 /* === ANALYTICS HELPERS === */
 var _sessionStart=Date.now();
 var _orbsLaunched=0;
@@ -1584,8 +1679,10 @@ function endGame(){
   document.getElementById('endgame-score').textContent=score;
   document.getElementById('endgame-score').style.color=score<0?'rgba(255,100,80,0.9)':'white';
   var lastName=localStorage.getItem(NAME_KEY)||'';
-  document.getElementById('name-input').value=lastName;
-  setTimeout(function(){document.getElementById('name-input').focus();},100);
+  var inp=document.getElementById('name-input');
+  inp.value=lastName;
+  // select all so player can type immediately to replace
+  setTimeout(function(){inp.focus();inp.select();},100);
   // analytics
   var sessionSec=Math.round((Date.now()-_sessionStart)/1000);
   fbLog('game_end',{score:score,orbs_eaten:orbsEaten,orbs_launched:_orbsLaunched,session_seconds:sessionSec});
@@ -1645,11 +1742,15 @@ function resetGame(){
   document.getElementById('intro-overlay').style.display='flex';
   paused=true;
 }
-function startGame(){
+function startGame(chill){
+  chillMode=!!chill;
+  // update chill indicator if button still exists
+  var btn=document.getElementById('chill-btn');
+  if(btn){btn.textContent=chillMode?'🌊  Chill mode: On':'🌊  Chill mode: Off';}
   document.getElementById('intro-overlay').style.display='none';
   paused=false;lastT=0;
   _sessionStart=Date.now();
-  fbLog('game_start',{});
+  fbLog('game_start',{chill:chillMode});
 }
 
 /* === LAUNCHER IDLE HINT === */
@@ -1727,8 +1828,7 @@ if(launcher.cooldown>0){
 } else if(!launcher.pulling){
   // cooldown done — tick the launch window
   launcher.launchWindow+=dt;
-  if(launcher.launchWindow>=launcher.launchWindowMax){
-    // auto-fire toward sun — punish inaction
+  if(!chillMode&&launcher.launchWindow>=launcher.launchWindowMax){
     autoLaunch();
   }
 }
@@ -1751,6 +1851,7 @@ window.saveScore=saveScore;
 window.skipSave=skipSave;
 window.clearScores=clearScores;
 window.switchBoard=switchBoard;
+window.toggleChill=toggleChill;
 })();
 </script>
 </body>

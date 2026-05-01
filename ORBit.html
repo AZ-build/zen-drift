@@ -274,7 +274,7 @@ var W=0,H=0,TS=0.05,GM=4.0;
 function orbV(r,d){return Math.sqrt(GM/(d*TS))*(1+Math.max(0,(14-r)*0.006));}
 function idealSpeed(d){return Math.sqrt(GM/d)*Math.sqrt(1/TS);}
 var SUN_BASE_R=28;
-var SUN_MAX_MASS=25;
+var SUN_MAX_MASS=8;
 var sun={x:0,y:0,vx:0,vy:0,r:SUN_BASE_R,homeX:0,homeY:0,mass:0,maxMass:SUN_MAX_MASS};
 var blackHole={active:false,t:0,devourT:0,done:false};
 var well={active:false,x:0,y:0,px:0,py:0,vx:0,vy:0};
@@ -653,8 +653,10 @@ function queueNext(){
   launcher.nextR=6+Math.floor(Math.random()*16);
   launcher.nextPT=Math.floor(Math.random()*PTYPES.length);
   launcher.launchNum++;
-  // escalating cooldown: 1st=10s, 2nd=20s, 3rd=30s... cap at 60s
-  var cd=Math.min(60000,launcher.launchNum*10000);
+  // cooldown based on how many extra orbs beyond 3 are on the board
+  // 3 orbs = 2s (fast), each extra orb adds 2s, cap at 20s
+  var extra=Math.max(0,liveOrbCount()-3);
+  var cd=Math.min(20000,2000+extra*2000);
   launcher.cooldown=cd;launcher.maxCooldown=cd;
   // once ready, player has 10s to launch before auto-fire
   launcher.launchWindow=0;launcher.launchWindowMax=10000;

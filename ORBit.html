@@ -280,8 +280,8 @@ function idealSpeed(d){return Math.sqrt(GM/d)*Math.sqrt(1/TS);}
 var SUN_BASE_R=28;
 var SUN_MAX_MASS=8;
 var sun={x:0,y:0,vx:0,vy:0,r:SUN_BASE_R,homeX:0,homeY:0,mass:0,maxMass:SUN_MAX_MASS};
-var blackHole={active:false,t:0,devourT:0,done:false};
-var well={active:false,x:0,y:0,px:0,py:0,vx:0,vy:0};
+var blackHole={active:false,t:0,devourT:0,done:false,flash:0};
+var well={active:false,x:0,y:0,px:0,py:0,vx:0,vy:0,depth:0,holdTime:0,trail:[]};
 var WELL_CAPTURE=32; // radius where planet locks to finger
 var WELL_ATTRACT=180; // radius of gravitational influence
 var WELL_STRENGTH=0.006; // gravity constant for finger well
@@ -295,7 +295,7 @@ function initW(){cols=Math.ceil(W/CELL)+4;rows=Math.ceil(H/CELL)+4;wH=new Float3
 function disturb(px,py,str){var cx=~~(px/CELL)+1,cy=~~(py/CELL)+1;for(var dy=-4;dy<=4;dy++)for(var dx=-4;dx<=4;dx++){var gx=cx+dx,gy=cy+dy;if(gx<0||gx>=cols||gy<0||gy>=rows)continue;var d=Math.sqrt(dx*dx+dy*dy);if(d>4)continue;wH[gy*cols+gx]+=str*(1-d/4)*(1-d/4);}}
 function stepW(){for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wV[i]+=((wH[i-1]+wH[i+1]+wH[i-cols]+wH[i+cols])*0.25-wH[i])*0.3;wV[i]*=0.94;}for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wH[i]+=wV[i];if(wH[i]>5)wH[i]=5;if(wH[i]<-5)wH[i]=-5;}for(var x=0;x<cols;x++){wH[x]=0;wV[x]=0;wH[(rows-1)*cols+x]=0;wV[(rows-1)*cols+x]=0;}for(var y=0;y<rows;y++){wH[y*cols]=0;wV[y*cols]=0;wH[y*cols+cols-1]=0;wV[y*cols+cols-1]=0;}}
 function wAt(px,py){var gxf=px/CELL+1,gyf=py/CELL+1,gx=~~gxf,gy=~~gyf;if(gx<0||gx>=cols-1||gy<0||gy>=rows-1)return 0;var fx=gxf-gx,fy=gyf-gy,i=gy*cols+gx;return wH[i]*(1-fx)*(1-fy)+wH[i+1]*fx*(1-fy)+wH[i+cols]*(1-fx)*fy+wH[i+cols+1]*fx*fy;}
-function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?Math.min(8,1+blackHole.t/500):1;var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.active){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;var fs=4000/(fd*fd+150);wx+=fdx/fd*fs;wy+=fdy/fd*fs;}return{x:wx,y:wy};}
+function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?Math.min(8,1+blackHole.t/500):1;var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.depth>0.01){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;if(fd<200){var fs=(600+well.depth*well.depth*8000)/(fd*fd+80);wx+=fdx/fd*fs*well.depth;wy+=fdy/fd*fs*well.depth;}}return{x:wx,y:wy};}
 function drawGrid(t){
   var sp=22;
   // slow diagonal drift — solar system moving through space
@@ -466,52 +466,72 @@ function drawGalaxies(t){
 
 function triggerBlackHole(){
   blackHole.active=true;blackHole.t=0;blackHole.devourT=0;blackHole.done=false;
-  paused=false; // keep physics running during BH
+  paused=false;
+  // flash the screen white briefly
+  blackHole.flash=1.0;
+  disturb(sun.x,sun.y,8);
+  addRing(sun.x,sun.y,3);addRing(sun.x,sun.y,4);
+  try{if(navigator.vibrate)navigator.vibrate([80,40,80]);}catch(e){}
 }
 
 function drawBlackHole(t){
   var sx=sun.x,sy=sun.y;
-  var phase=Math.min(1,blackHole.t/2000); // collapse phase 0-1
-  var R=sun.r*(1-phase*0.5); // shrinks to half during collapse
+  var phase=Math.min(1,blackHole.t/800);
+  var BHR=sun.r*(0.45+phase*0.2); // small, tight event horizon
 
-  // EXTREME spacetime distortion rings — Interstellar-style accretion
-  var numRings=8;
-  for(var i=0;i<numRings;i++){
-    var ringT=(t*0.001+i*0.7)%6.28;
-    var rr=R*(1.5+i*0.9)+Math.sin(ringT)*4;
-    var tilt=0.25+i*0.04;
-    var alpha=Math.max(0,(0.35-i*0.035)*(0.5+phase*0.5));
-    ctx.save();ctx.translate(sx,sy);ctx.scale(1,tilt);
-    var rc=i<3?[255,180,80]:i<6?[200,100,255]:[100,180,255];
-    ctx.strokeStyle="rgba("+rc[0]+","+rc[1]+","+rc[2]+","+alpha+")";
-    ctx.lineWidth=2.5-i*0.2;
-    ctx.beginPath();ctx.arc(0,0,rr,0,6.28);ctx.stroke();
+  // ── GRAVITATIONAL LENSING HALO ──
+  // Concentric rings that shimmer and rotate — simulating light being
+  // bent around the singularity. Different speeds create the warping illusion.
+  // rings spin fast and violently — closer together, more chaotic
+  var spd=1+phase*4; // rings accelerate as black hole forms
+  var lensRings=[
+    {r:3.2,tilt:0.10,speed:0.0008*spd, lw:2.5,a:0.4, col:[255,220,140]},
+    {r:2.6,tilt:0.14,speed:-0.0012*spd,lw:2.0,a:0.45,col:[255,190,80]},
+    {r:2.1,tilt:0.20,speed:0.0018*spd, lw:1.8,a:0.50,col:[255,160,50]},
+    {r:1.7,tilt:0.26,speed:-0.0025*spd,lw:1.5,a:0.55,col:[255,130,30]},
+    {r:1.4,tilt:0.16,speed:0.0035*spd, lw:4.5,a:0.80,col:[255,240,180]}, // photon ring — bright
+    {r:1.25,tilt:0.30,speed:-0.005*spd, lw:1.0,a:0.40,col:[255,100,20]},
+    {r:1.1, tilt:0.12,speed:0.007*spd,  lw:2.0,a:0.60,col:[255,255,220]}, // innermost — white hot
+  ];
+
+  for(var ri=0;ri<lensRings.length;ri++){
+    var lr=lensRings[ri];
+    var angle=t*lr.speed;
+    ctx.save();
+    ctx.translate(sx,sy);
+    ctx.rotate(angle);
+    ctx.scale(1,lr.tilt);
+    var ra=(lr.a*(0.6+phase*0.4));
+    ctx.strokeStyle="rgba("+lr.col[0]+","+lr.col[1]+","+lr.col[2]+","+ra+")";
+    ctx.lineWidth=lr.lw*(0.7+phase*0.4);
+    ctx.beginPath();ctx.arc(0,0,BHR*lr.r,0,6.28);ctx.stroke();
+    // secondary faint echo ring slightly offset
+    ctx.strokeStyle="rgba("+lr.col[0]+","+lr.col[1]+","+lr.col[2]+","+(ra*0.3)+")";
+    ctx.lineWidth=lr.lw*0.4;
+    ctx.beginPath();ctx.arc(0,0,BHR*lr.r*1.06,0,6.28);ctx.stroke();
     ctx.restore();
   }
 
-  // photon ring — bright hot ring close to singularity
-  ctx.save();ctx.translate(sx,sy);
-  ctx.scale(1,0.3);
-  var pr2=ctx.createRadialGradient(0,0,R*0.9,0,0,R*1.4);
-  pr2.addColorStop(0,"rgba(255,220,100,0)");
-  pr2.addColorStop(0.4,"rgba(255,180,60,"+(0.3+phase*0.4)+")");
-  pr2.addColorStop(0.7,"rgba(255,120,20,"+(0.15+phase*0.2)+")");
-  pr2.addColorStop(1,"rgba(255,60,0,0)");
-  ctx.fillStyle=pr2;ctx.beginPath();ctx.arc(0,0,R*1.8,0,6.28);ctx.fill();
-  ctx.restore();
+  // ── INNER GLOW — light compressed at horizon ──
+  var ig=ctx.createRadialGradient(sx,sy,BHR*0.85,sx,sy,BHR*1.5);
+  ig.addColorStop(0,"rgba(255,200,100,"+(0.0)+")");
+  ig.addColorStop(0.3,"rgba(255,200,100,"+(0.18+phase*0.15)+")");
+  ig.addColorStop(0.7,"rgba(255,140,40,"+(0.08+phase*0.08)+")");
+  ig.addColorStop(1,"rgba(0,0,0,0)");
+  ctx.fillStyle=ig;ctx.beginPath();ctx.arc(sx,sy,BHR*1.5,0,6.28);ctx.fill();
 
-  // singularity — pure black disc, grows with phase
-  var bhR=R*(0.3+phase*0.7);
-  var bhg=ctx.createRadialGradient(sx,sy,0,sx,sy,bhR*2);
-  bhg.addColorStop(0,"rgba(0,0,0,1)");
-  bhg.addColorStop(0.5,"rgba(0,0,0,0.95)");
-  bhg.addColorStop(1,"rgba(0,0,0,0)");
-  ctx.fillStyle=bhg;ctx.beginPath();ctx.arc(sx,sy,bhR*2,0,6.28);ctx.fill();
+  // ── SINGULARITY — absolute black, hard edge ──
+  ctx.fillStyle="#000";
+  ctx.beginPath();ctx.arc(sx,sy,BHR,0,6.28);ctx.fill();
 
-  // gravitational lensing — warp grid lines heavily
-  // (handled by gWarp being called with amplified sun warp)
-
-  // done phase — fading text "game over" handled by endGame overlay
+  // ── PHOTON SPHERE — thin bright ring right at the edge ──
+  // This is where photons actually orbit — very bright, thin
+  ctx.strokeStyle="rgba(255,240,200,"+(0.7+phase*0.25)+")";
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(sx,sy,BHR*1.02,0,6.28);ctx.stroke();
+  ctx.strokeStyle="rgba(255,200,100,"+(0.3+phase*0.15)+")";
+  ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(sx,sy,BHR*1.05,0,6.28);ctx.stroke();
 }
 
 function updateBlackHole(dt){
@@ -520,9 +540,9 @@ function updateBlackHole(dt){
   // phase 1: 0-2s — sun collapses inward
   // phase 2: 2-5s — black hole devours all orbs one by one
   // phase 3: 5-8s — fabric distortion + game over screen appears
-  if(blackHole.t>2000&&!blackHole.done){
+  if(blackHole.t>600&&!blackHole.done){
     blackHole.devourT+=dt;
-    if(blackHole.devourT>200){ // eat one orb every 200ms
+    if(blackHole.devourT>80){ // eat one orb every 80ms — rapid fire
       blackHole.devourT=0;
       var eaten=false;
       for(var i=0;i<orbs.length;i++){
@@ -540,7 +560,7 @@ function updateBlackHole(dt){
       }
     }
   }
-  if(blackHole.done&&blackHole.t>7000){
+  if(blackHole.done&&blackHole.t>3000){
     // show game over
     endGame();
     blackHole.active=false;
@@ -594,24 +614,37 @@ function drawSun(t){
 
   ctx.restore();
 
-  // inner body — warm yellow-orange, bright
+  // inner body — color shifts with mass accumulation
+  // 0% mass: warm yellow-orange (normal star)
+  // 50% mass: bright white-yellow (hotter, more compressed)
+  // 100% mass: eerie blue-white (critically massive, about to collapse)
+  var mp=sun.mass/sun.maxMass; // 0..1
+  // 0% → warm yellow-orange, 100% → pure blazing white
+  // All channels converge to 255 at full mass — white hot star
+  var coreR=255,coreG=~~(255-mp*10),coreB=~~(220+mp*35);
+  var mid1R=255,mid1G=~~(240-mp*40),mid1B=~~(160+mp*95);
+  var mid2R=255,mid2G=~~(200-mp*60),mid2B=~~(80+mp*175);
+  var rimR=255,rimG=~~(155-mp*55),rimB=~~(45+mp*210);
+  var edgeR=~~(220+mp*35),edgeG=~~(100+mp*55),edgeB=~~(25+mp*230);
+
   ctx.save();ctx.translate(sx,sy);
   ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.clip();
   var gc=ctx.createRadialGradient(-R*0.15,-R*0.15,0,0,0,R);
-  gc.addColorStop(0,"rgba(255,255,240,0.97)");
-  gc.addColorStop(0.2,"rgba(255,240,180,0.95)");
-  gc.addColorStop(0.5,"rgba(255,200,80,0.9)");
-  gc.addColorStop(0.8,"rgba(245,155,45,0.85)");
-  gc.addColorStop(1,"rgba(220,100,25,0.75)");
+  gc.addColorStop(0,"rgba("+coreR+","+coreG+","+coreB+",0.97)");
+  gc.addColorStop(0.2,"rgba("+mid1R+","+mid1G+","+mid1B+",0.95)");
+  gc.addColorStop(0.5,"rgba("+mid2R+","+mid2G+","+mid2B+",0.9)");
+  gc.addColorStop(0.8,"rgba("+rimR+","+rimG+","+rimB+",0.85)");
+  gc.addColorStop(1,"rgba("+edgeR+","+edgeG+","+edgeB+",0.75)");
   ctx.fillStyle=gc;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
 
-  // soft granulation
+  // granulation color also shifts
   for(var i=0;i<5;i++){
     var sa2=t*0.00015+i*1.26;
     var sx2=Math.cos(sa2)*R*0.38,sy2=Math.sin(sa2)*R*0.38;
     var sg=ctx.createRadialGradient(sx2,sy2,0,sx2,sy2,R*0.32);
-    sg.addColorStop(0,"rgba(255,255,220,0.13)");
-    sg.addColorStop(1,"rgba(255,220,160,0)");
+    var grR=~~(255-mp*30),grG=~~(255-mp*120),grB=~~(220+mp*35);
+    sg.addColorStop(0,"rgba("+grR+","+grG+","+grB+",0.13)");
+    sg.addColorStop(1,"rgba("+grR+","+grG+","+grB+",0)");
     ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx2,sy2,R*0.32,0,6.28);ctx.fill();
   }
 
@@ -628,23 +661,56 @@ function drawSun(t){
 }
 
 function drawPuck(){
-  if(!well.active)return;
+  var dep=well.depth;
+  var hasTrail=well.trail.length>1;
+
+  // ── FINGER TRAIL — channel in the fabric ──
+  if(hasTrail){
+    for(var ti=1;ti<well.trail.length;ti++){
+      var ta=well.trail[ti-1],tb=well.trail[ti];
+      var fade=1-tb.age; // 1=fresh, 0=gone
+      var tdep=(ta.dep+tb.dep)*0.5;
+      var alpha=fade*fade*(0.15+tdep*0.35);
+      var w=1+tdep*2.5;
+      ctx.strokeStyle="rgba(200,120,255,"+alpha+")";
+      ctx.lineWidth=w;ctx.lineCap="round";
+      ctx.beginPath();ctx.moveTo(ta.x,ta.y);ctx.lineTo(tb.x,tb.y);ctx.stroke();
+    }
+    ctx.lineCap="butt";
+  }
+
+  if(dep<=0.01)return;
   var x=well.x,y=well.y;
-  disturb(x,y,0.2);
-  // outer attraction field — faint
-  var halo=ctx.createRadialGradient(x,y,WELL_CAPTURE,x,y,WELL_ATTRACT*0.5);
-  halo.addColorStop(0,"rgba(180,100,255,0.04)");
-  halo.addColorStop(1,"rgba(180,100,255,0)");
-  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,WELL_ATTRACT*0.5,0,6.28);ctx.fill();
-  // capture ring — where planets lock on
-  ctx.strokeStyle="rgba(200,120,255,0.2)";ctx.lineWidth=0.8;
-  ctx.setLineDash([3,5]);ctx.beginPath();ctx.arc(x,y,WELL_CAPTURE,0,6.28);ctx.stroke();
-  ctx.setLineDash([]);
-  // tiny center dot
-  var cg=ctx.createRadialGradient(x,y,0,x,y,8);
-  cg.addColorStop(0,"rgba(220,150,255,0.5)");
-  cg.addColorStop(1,"rgba(180,80,255,0)");
-  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,8,0,6.28);ctx.fill();
+  disturb(x,y,0.4*dep);
+
+  // tight inner halo — not huge, just around the finger
+  var haloR=20+dep*30; // max 50px — stays tight
+  var halo=ctx.createRadialGradient(x,y,0,x,y,haloR);
+  halo.addColorStop(0,"rgba(200,100,255,"+(0.08+dep*0.18)+")");
+  halo.addColorStop(0.5,"rgba(160,70,255,"+(0.03+dep*0.08)+")");
+  halo.addColorStop(1,"rgba(120,50,255,0)");
+  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,haloR,0,6.28);ctx.fill();
+
+  // 3 concentric rings showing gravity well depth — tighter, not expanding
+  var ringSpacings=[12,22,36];
+  for(var ri=0;ri<3;ri++){
+    var rr=ringSpacings[ri]*(0.5+dep*0.5); // scale with depth but stay small
+    var rAlpha=(0.06+dep*0.22)*(1-ri*0.25);
+    if(dep<(ri+1)*0.28)continue; // rings appear progressively as depth grows
+    ctx.strokeStyle="rgba(210,130,255,"+rAlpha+")";
+    ctx.lineWidth=0.6+dep*0.5;
+    ctx.setLineDash(ri===2?[2,4]:[]);
+    ctx.beginPath();ctx.arc(x,y,rr,0,6.28);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // singularity dot
+  var dotR=2+dep*6;
+  var cg=ctx.createRadialGradient(x,y,0,x,y,dotR);
+  cg.addColorStop(0,"rgba(240,190,255,"+(0.4+dep*0.55)+")");
+  cg.addColorStop(0.6,"rgba(180,80,255,"+(0.15+dep*0.35)+")");
+  cg.addColorStop(1,"rgba(120,40,255,0)");
+  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,dotR,0,6.28);ctx.fill();
 }
 
 var PTYPES=[{name:"rocky",bands:0,hasRing:false,hasCraters:true,hasAtmo:false,atmoC:null,surfTint:[0.9,0.85,0.8]},{name:"terr",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[100,180,255],surfTint:[0.7,0.8,1.0]},{name:"gas",bands:3,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[255,200,150],surfTint:[1.0,0.9,0.7]},{name:"ringed",bands:2,hasRing:true,hasCraters:false,hasAtmo:false,atmoC:null,surfTint:[0.85,0.9,1.0]},{name:"ice",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[150,220,255],surfTint:[0.8,0.95,1.0]}];
@@ -902,34 +968,78 @@ function drawTrail(o){if(o.dead||o.trail.length<4)return;var c=stabCol(o.instabi
 function drawOrb(o){if(o.dead)return;var effR=o.suctioning?o.r:o.baseR;var rx=effR*(1+o.squishX*0.2),ry=effR*(1+o.squishY*0.2);if(rx<0.5||ry<0.5)return;var sc=o.suctioning?stabCol(1.5):stabCol(o.instability),g=o.glow+(o.suctioning?0.5:0),r=Math.max(rx,ry),pt=o.ptype;var baseC=[sc[0]*pt.surfTint[0],sc[1]*pt.surfTint[1],sc[2]*pt.surfTint[2]];var sdx=sun.x-o.x,sdy=sun.y-o.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);var snx=sd>0?sdx/sd:0,sny=sd>0?sdy/sd:0;var li=Math.min(1,130/(sd*0.22+35)),lx=snx*r*0.35,ly=sny*r*0.35;if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,Math.PI,2*Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,Math.PI,2*Math.PI);ctx.stroke();ctx.restore();}ctx.save();ctx.translate(o.x,o.y);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();ctx.fillStyle=rgba([baseC[0]*0.2,baseC[1]*0.2,baseC[2]*0.2],1);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();var main=ctx.createRadialGradient(lx,ly,0,lx*0.3,ly*0.3,r*1.4);main.addColorStop(0,rgba(l3(baseC,[255,255,240],0.25*li),0.92));main.addColorStop(0.25,rgba(baseC,0.88));main.addColorStop(0.55,rgba([baseC[0]*0.45,baseC[1]*0.45,baseC[2]*0.45],0.92));main.addColorStop(0.85,rgba([baseC[0]*0.1,baseC[1]*0.1,baseC[2]*0.1],0.96));main.addColorStop(1,rgba([6,6,12],0.98));ctx.fillStyle=main;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.bands>0){ctx.save();ctx.rotate(o.angle*0.3);for(var b=0;b<pt.bands;b++){var by2=(b/(pt.bands-0.5)-0.5)*r*1.4;var bh=r*0.18+Math.sin(o.angle+b*2)*r*0.04;ctx.fillStyle=rgba(l3(baseC,[255,255,255],0.15+b*0.08),0.12*li);ctx.fillRect(-rx,by2-bh/2,rx*2,bh);}ctx.restore();}if(pt.hasCraters&&o.craterSeeds){for(var c2=0;c2<o.craterSeeds.length;c2++){var ca=o.craterSeeds[c2],cr=r*0.12+c2*r*0.05;var cx2=Math.cos(ca+o.angle*0.1)*r*0.35,cy2=Math.sin(ca+o.angle*0.1)*r*0.3;ctx.fillStyle=rgba([baseC[0]*0.3,baseC[1]*0.3,baseC[2]*0.3],0.2*li);ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();}}var hl=ctx.createRadialGradient(lx*0.8,ly*0.8,0,lx*0.5,ly*0.5,r*0.55);hl.addColorStop(0,rgba([255,255,250],0.14*li+g*0.07));hl.addColorStop(0.3,rgba([255,250,240],0.05*li));hl.addColorStop(1,"rgba(255,245,230,0)");ctx.fillStyle=hl;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.hasAtmo&&pt.atmoC){var ag=ctx.createRadialGradient(0,0,r*0.85,0,0,r*1.05);ag.addColorStop(0,rgba(pt.atmoC,0));ag.addColorStop(0.5,rgba(pt.atmoC,0.06*li));ag.addColorStop(1,rgba(pt.atmoC,0.02));ctx.fillStyle=ag;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();}var rimX=-snx*r*0.55,rimY=-sny*r*0.55;var rim=ctx.createRadialGradient(rimX,rimY,r*0.55,rimX,rimY,r*1.15);rim.addColorStop(0,rgba(baseC,0.07*li));rim.addColorStop(1,rgba(baseC,0));ctx.fillStyle=rim;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();ctx.restore();var la=Math.atan2(sny,snx);ctx.strokeStyle=rgba(l3(baseC,[255,240,220],0.2*li),0.3+g*0.15);ctx.lineWidth=0.9;ctx.beginPath();ctx.arc(o.x,o.y,rx,la-1.57,la+1.57);ctx.stroke();ctx.strokeStyle=rgba(baseC,0.08+g*0.04);ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(o.x,o.y,rx,la+1.57,la+4.71);ctx.stroke();if(pt.hasAtmo&&pt.atmoC){ctx.strokeStyle=rgba(pt.atmoC,0.08*li);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,rx+1.5,la-1.2,la+1.2);ctx.stroke();}if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,0,Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,0,Math.PI);ctx.stroke();ctx.restore();}}
 
 function applyPuck(){
-  if(!well.active)return;
+  var dep=well.depth; // 0..1, works even when not active (decay phase)
+  if(dep<=0)return;
   var wx=well.x,wy=well.y;
-  var wvx=wx-well.px,wvy=wy-well.py; // finger velocity
+  var wvx=wx-well.px,wvy=wy-well.py;
   var wSpd=Math.sqrt(wvx*wvx+wvy*wvy);
 
-  // sun: pull toward well if in range
+  // influence radius grows with depth
+  var radius=WELL_ATTRACT*(0.4+dep*0.6); // 72px at min, 180px at full depth
+
+  // sun: scales with depth
   var sdx=wx-sun.x,sdy=wy-sun.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);
-  if(sd<WELL_ATTRACT&&sd>sun.r){
-    var sf=Math.min(0.003, WELL_STRENGTH*2/(sd+1));
+  if(sd<radius&&sd>sun.r){
+    var sf=Math.min(0.004,WELL_STRENGTH*dep*1.5/(sd+1));
     sun.vx+=sdx/sd*sf;sun.vy+=sdy/sd*sf;
   }
 
   for(var i=0;i<orbs.length;i++){
-    var o=orbs[i];if(o.dead)continue;
+    var o=orbs[i];if(o.dead||o.suctioning)continue;
     var dx=wx-o.x,dy=wy-o.y,d=Math.sqrt(dx*dx+dy*dy);
+    if(d>radius)continue;
 
-    if(d<WELL_CAPTURE){
-      // CAPTURED — orbit snaps to finger, moves with it
-      o.x+=(dx)*0.18;o.y+=(dy)*0.18; // pull toward center smoothly
-      o.vx=wvx*0.7;o.vy=wvy*0.7;    // inherit finger velocity
+    var falloff=1-(d/radius);
+
+    // base strength: at 3s hold = ~10x sun gravity at close range
+    // at 0s = just a gentle nudge from a swipe
+    var baseStr=WELL_STRENGTH*(4.0+dep*dep*12.0)*falloff*falloff;
+
+    // swipe speed adds a directional burst (quick swipe = shallow path)
+    // moves the planet along the swipe direction rather than just toward well
+    if(wSpd>0.3){
+      var swipeStr=Math.min(0.06,wSpd*0.012)*(1-dep*0.3);
+      // swipe direction is the main force, fall toward well is secondary
+      o.vx+=wvx/Math.max(1,wSpd)*swipeStr*falloff;
+      o.vy+=wvy/Math.max(1,wSpd)*swipeStr*falloff;
+    }
+
+    // radial pull toward well center
+    o.vx+=dx/d*baseStr;
+    o.vy+=dy/d*baseStr;
+    o.idleTime=0;
+
+    // ── CAPTURE ASSIST: close pass = viscous drag to slow fast movers ──
+    // within ~25px the planet hits a "sticky patch" — decelerates so gravity
+    // has time to work. Stronger the closer, scales with depth.
+    if(d<25){
+      var dragAmt=0.06+dep*0.12; // 6-18% speed reduction per frame
+      o.vx*=(1-dragAmt);
+      o.vy*=(1-dragAmt);
       o.glow=Math.min(1,o.glow+0.04);
-      o.idleTime=0;
-      if(wSpd>0.5)disturb(wx,wy,wSpd*0.03);
-    } else if(d<WELL_ATTRACT){
-      // ATTRACT — gravitational pull toward finger
-      var f=WELL_STRENGTH/(d*d)*d*0.08;
-      f=Math.min(f,0.003);
-      o.vx+=dx/d*f;o.vy+=dy/d*f;
+    }
+
+    // glow scales with depth
+    if(d<radius*0.6)o.glow=Math.min(0.8,o.glow+0.012*dep);
+  }
+
+  // ── TRAIL CHANNEL PULL — orbs attracted along the carved path ──
+  // Each recent trail point pulls nearby orbs, creating a channel effect
+  if(well.trail.length>1){
+    for(var oi=0;oi<orbs.length;oi++){
+      var o2=orbs[oi];if(o2.dead||o2.suctioning)continue;
+      for(var ti=Math.max(0,well.trail.length-12);ti<well.trail.length;ti++){
+        var tp=well.trail[ti];
+        var freshness=1-tp.age; // fades as trail ages
+        var tdx=tp.x-o2.x,tdy=tp.y-o2.y;
+        var td=Math.sqrt(tdx*tdx+tdy*tdy);
+        if(td>60||td<1)continue;
+        var tfall=1-(td/60);
+        // pull toward trail point, strength based on depth when drawn
+        var tStr=WELL_STRENGTH*2.5*tp.dep*tfall*tfall*freshness;
+        o2.vx+=tdx/td*tStr;
+        o2.vy+=tdy/td*tStr;
+      }
     }
   }
 }
@@ -943,8 +1053,8 @@ function gXY(e){var t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY}}
 function inLZ(p){return Math.sqrt((p.x-launcher.x)**2+(p.y-launcher.y)**2)<LAUNCH_ZONE_R&&launcher.cooldown<=0;}
 function inMenuZone(p){return p.x>=W-56&&p.y>=48&&p.y<=82;}
 function onD(e){e.preventDefault();var p=gXY(e);if(inMenuZone(p)){showMenu();return;}if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}}
-function onM(e){e.preventDefault();var p=gXY(e);if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!well.active)return;well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;well.vx=well.x-well.px;well.vy=well.y-well.py;var spd=Math.sqrt(well.vx**2+well.vy**2);disturb(well.x,well.y,0.2+spd*0.01);dragN++;if(dragN%14===0)addRing(well.x,well.y,0.05+spd*0.004);}
-function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(well.active){disturb(well.x,well.y,0.8);addRing(well.x,well.y,0.3);}well.active=false;dragN=0;}
+function onM(e){e.preventDefault();var p=gXY(e);if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!well.active)return;well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;well.vx=well.x-well.px;well.vy=well.y-well.py;var spd=Math.sqrt(well.vx**2+well.vy**2);disturb(well.x,well.y,0.2+spd*0.01);well.trail.push({x:well.x,y:well.y,age:0,dep:well.depth});if(well.trail.length>40)well.trail.shift();dragN++;}
+function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(well.active){disturb(well.x,well.y,0.8);}well.active=false;well.trail=[];dragN=0;}
 canvas.addEventListener("touchstart",onD,{passive:false});canvas.addEventListener("touchmove",onM,{passive:false});canvas.addEventListener("touchend",onU,{passive:false});
 canvas.addEventListener("mousedown",onD,false);canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);canvas.addEventListener("mouseup",onU,false);
 
@@ -1524,7 +1634,7 @@ function resetGame(){
   document.getElementById('menu-overlay').style.display='none';
   score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];orbsEaten=0;
   orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
-  well.active=false;launcher.pulling=false;launcher.cooldown=0;launcher.launchNum=0;launcher.launchWindow=0;
+  well.active=false;well.depth=0;well.holdTime=0;well.trail=[];launcher.pulling=false;launcher.cooldown=0;launcher.launchNum=0;launcher.launchWindow=0;
   sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;
   sun.homeX=W/2;sun.homeY=H/2;
   sun.r=SUN_BASE_R;sun.mass=0;
@@ -1602,6 +1712,16 @@ function drawLauncherIdleHint(){
 
 var lastT=0,time=0,sunPulsed=false,paused=true;
 function frame(now){requestAnimationFrame(frame);if(paused){lastT=0;return;}if(lastT===0){lastT=now;return;}var dt=Math.min(now-lastT,40);lastT=now;time+=dt;updateBlackHole(dt);
+// decay trail point ages
+for(var _ti=well.trail.length-1;_ti>=0;_ti--){well.trail[_ti].age+=dt/800;if(well.trail[_ti].age>=1)well.trail.splice(_ti,1);}
+// well depth — builds while held, decays fast on release
+if(well.active){
+  well.holdTime=Math.min(1000,well.holdTime+dt);
+  well.depth=well.holdTime/1000; // 0→1 over 3s
+} else {
+  well.depth=Math.max(0,well.depth-dt/400); // fades in 0.4s
+  if(well.depth<=0)well.holdTime=0;
+}
 if(launcher.cooldown>0){
   launcher.cooldown-=dt;
 } else if(!launcher.pulling){
@@ -1612,7 +1732,13 @@ if(launcher.cooldown>0){
     autoLaunch();
   }
 }
-tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}drawPuck();drawLauncherIdleHint();drawLauncher(time);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
+tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}// black hole trigger flash
+if(blackHole.flash>0){
+  blackHole.flash-=0.06;
+  ctx.fillStyle="rgba(255,220,100,"+Math.max(0,blackHole.flash)+")";
+  ctx.fillRect(0,0,W,H);
+}
+drawPuck();drawLauncherIdleHint();drawLauncher(time);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
 resize();requestAnimationFrame(frame);
 // expose menu functions to global scope for onclick handlers
 window.startGame=startGame;

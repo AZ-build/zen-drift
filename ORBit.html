@@ -110,9 +110,9 @@ canvas{display:block;position:fixed;top:0;left:0}
 </div>
 
 <!-- INTRO OVERLAY -->
-<div id="intro-overlay" class="orbit-overlay" style="display:flex;align-items:center;justify-content:center;">
-  <div style="text-align:center;max-width:320px;padding:0 24px;">
-    <svg viewBox="0 0 80 80" width="72" height="72" style="margin-bottom:16px;">
+<div id="intro-overlay" class="orbit-overlay" style="display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="text-align:center;max-width:320px;padding:24px 24px;width:100%;flex-shrink:0;">
+    <svg viewBox="0 0 80 80" width="60" height="60" style="margin-bottom:12px;">
       <circle cx="40" cy="40" r="37" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
       <circle cx="40" cy="40" r="25" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
       <circle cx="40" cy="40" r="13" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
@@ -122,21 +122,25 @@ canvas{display:block;position:fixed;top:0;left:0}
       <circle cx="56" cy="26" r="5" fill="#22cc88"/>
       <circle cx="22" cy="15" r="3.5" fill="#cc44ff"/>
     </svg>
-    <div style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
-    <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:28px;">gravity sandbox</div>
-    <p style="font-size:15px;color:rgba(255,255,255,0.55);line-height:1.65;margin-bottom:32px;">Keep planets in stable orbit. The more blue orbits you maintain, the faster your score climbs. But the sun grows every time it feeds — and if it absorbs too much mass, it collapses into a black hole and the game ends.</p>
-    <div style="display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:32px;">
-      <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> to fire — launch window counts down, or it auto-fires toward the sun</span>
+    <div style="font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:4px;">ORB<span style="color:#cc44ff;">it</span></div>
+    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:20px;">gravity sandbox</div>
+    <p style="font-size:14px;color:rgba(255,255,255,0.55);line-height:1.6;margin-bottom:20px;">Keep planets in stable orbit. The more blue orbits you maintain, the faster your score climbs. But the sun grows every time it feeds — fill its mass bar and it collapses into a black hole.</p>
+
+    <!-- Start button BEFORE the hints so it's always visible first -->
+    <button onclick="startGame()" style="display:block;width:100%;padding:15px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:14px;color:white;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.5px;margin-bottom:24px;">Start ORBit</button>
+
+    <!-- Hints below the button — visible if screen is tall enough, scrollable if not -->
+    <div style="display:flex;flex-direction:column;gap:10px;text-align:left;padding-bottom:16px;">
+      <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
+        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0;">🚀</span><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> to fire — launch window counts down, or it auto-fires toward the sun</span>
       </div>
-      <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to pull nearby planets with gravity — flick to sling them</span>
+      <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
+        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0;">🌀</span><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to pull nearby planets with gravity — flick to sling them</span>
       </div>
-      <div style="display:flex;gap:12px;align-items:center;font-size:14px;color:rgba(255,255,255,0.6);">
-        <span style="font-size:20px;width:28px;text-align:center;">⚫</span><span><strong style="color:rgba(200,80,255,0.9);">Watch the sun's mass bar</strong> — fill it and it becomes a black hole. Game over.</span>
+      <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
+        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0;">⚫</span><span><strong style="color:rgba(200,80,255,0.9);">Watch the sun's mass bar</strong> — fill it and it becomes a black hole. Game over.</span>
       </div>
     </div>
-    <button onclick="startGame()" style="display:block;width:100%;padding:16px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:14px;color:white;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;letter-spacing:0.5px;">Start ORBit</button>
   </div>
 </div>
 

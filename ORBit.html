@@ -14,7 +14,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#030308;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-canvas{display:block;position:fixed;top:0;left:0}
+canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-sun{position:static;top:auto;left:auto}
 
 
 </style>
@@ -163,42 +163,203 @@ canvas{display:block;position:fixed;top:0;left:0}
       </button>
     </div>
 
-    <!-- Hints below the button — visible if screen is tall enough, scrollable if not -->
-    <div style="display:flex;flex-direction:column;gap:10px;text-align:left;padding-bottom:16px;">
-      <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
-        <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;margin-top:1px;" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-      <circle cx="12" cy="12" r="6" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.8"/>
-      <circle cx="12" cy="12" r="3" fill="#ffcc55"/>
-      <!-- launcher arm pointing down -->
-      <line x1="12" y1="17" x2="12" y2="21" stroke="rgba(100,200,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
-      <polyline points="10,19 12,22 14,19" fill="none" stroke="rgba(100,200,255,0.6)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg><span><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> to fire — launch window counts down, or it auto-fires toward the sun</span>
+    <!-- Animated hint cards -->
+    <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:16px;">
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;">
+        <canvas id="hint-launch" width="240" height="80" style="display:block;width:240px;height:80px;max-width:100%;"></canvas>
+        <div style="padding:8px 14px 12px;font-size:13px;color:rgba(255,255,255,0.6);"><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> — aim and release to fire</div>
       </div>
-      <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
-        <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;margin-top:1px;" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="8" fill="none" stroke="rgba(200,120,255,0.35)" stroke-width="1" stroke-dasharray="2,3"/>
-      <circle cx="12" cy="12" r="4.5" fill="none" stroke="rgba(200,120,255,0.5)" stroke-width="0.8" stroke-dasharray="2,2"/>
-      <circle cx="12" cy="12" r="1.8" fill="rgba(200,120,255,0.7)"/>
-      <circle cx="19" cy="9" r="2" fill="#3399ff" opacity="0.8"/>
-    </svg><span><strong style="color:rgba(255,255,255,0.85);">Touch anywhere</strong> to pull nearby planets with gravity — flick to sling them</span>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;">
+        <canvas id="hint-well" width="240" height="80" style="display:block;width:240px;height:80px;max-width:100%;"></canvas>
+        <div style="padding:8px 14px 12px;font-size:13px;color:rgba(255,255,255,0.6);"><strong style="color:rgba(255,255,255,0.85);">Touch &amp; hold anywhere</strong> to create a gravity well — redirects nearby planets</div>
       </div>
-      <div style="display:flex;gap:12px;align-items:center;font-size:13px;color:rgba(255,255,255,0.6);">
-        <svg viewBox="0 0 24 24" width="22" height="22" style="flex-shrink:0;margin-top:1px;" xmlns="http://www.w3.org/2000/svg">
-      <defs><radialGradient id="hsg" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="50%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
-      <!-- spikes -->
-      <line x1="12" y1="2" x2="12" y2="5" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="12" y1="19" x2="12" y2="22" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="2" y1="12" x2="5" y2="12" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="19" y1="12" x2="22" y2="12" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="4.9" y1="4.9" x2="7" y2="7" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="17" y1="17" x2="19.1" y2="19.1" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="19.1" y1="4.9" x2="17" y2="7" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="7" y1="17" x2="4.9" y2="19.1" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
-      <circle cx="12" cy="12" r="5.5" fill="url(#hsg)"/>
-    </svg><span><strong style="color:rgba(255,160,40,0.95);">Watch the sun's mass bar</strong> — each absorbed planet grows it. Fill it and game over.</span>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;">
+        <canvas id="hint-sun" width="240" height="80" style="display:block;width:240px;height:80px;max-width:100%;"></canvas>
+        <div style="padding:8px 14px 12px;font-size:13px;color:rgba(255,255,255,0.6);"><strong style="color:rgba(255,160,40,0.95);">Watch the mass bar</strong> — fill it and the sun becomes a black hole</div>
       </div>
     </div>
+
+    <script>
+    (function(){
+      var ht=0;
+      function hei(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+      var hc1=document.getElementById('hint-launch'),hx1=hc1&&hc1.getContext('2d');
+      var hc2=document.getElementById('hint-well'),hx2=hc2&&hc2.getContext('2d');
+      var hc3=document.getElementById('hint-sun'),hx3=hc3&&hc3.getContext('2d');
+
+      // ── 1. LAUNCHER ──
+      function drawHint1(t){
+        if(!hx1)return;
+        hx1.clearRect(0,0,240,80);
+        hx1.globalAlpha=1;hx1.shadowBlur=0;hx1.lineCap='butt';hx1.lineJoin='miter';
+        var ph=(t%2800)/2800;
+        var lx=165,ly=60;
+        // platform
+        hx1.fillStyle='rgba(10,12,28,0.9)';hx1.beginPath();hx1.arc(lx,ly,7,0,6.28);hx1.fill();
+        hx1.strokeStyle='rgba(180,220,255,0.5)';hx1.lineWidth=1.2;hx1.beginPath();hx1.arc(lx,ly,7,0,6.28);hx1.stroke();
+        if(ph<0.42){
+          // pull to the RIGHT (planet goes right, so launch goes left)
+          var sw=hei(ph/0.42);
+          var ppx=lx+sw*26, ppy=ly+sw*8; // pulls down-right
+          hx1.strokeStyle='rgba(100,200,255,0.7)';hx1.lineWidth=1.5;hx1.lineCap='round';
+          hx1.beginPath();hx1.moveTo(lx,ly);hx1.lineTo(ppx,ppy);hx1.stroke();
+          hx1.lineCap='butt';
+          // faint trajectory pointing upper-left (launch direction)
+          hx1.strokeStyle='rgba(100,200,255,0.16)';hx1.lineWidth=1;
+          hx1.beginPath();hx1.moveTo(lx,ly);hx1.lineTo(lx-85,ly-25);hx1.stroke();
+          hx1.fillStyle='#4499ff';hx1.beginPath();hx1.arc(ppx,ppy,4.5,0,6.28);hx1.fill();
+        } else if(ph<0.88){
+          // planet launches upper-left (opposite of pull direction)
+          var fp3=hei((ph-0.42)/0.46);
+          var ox=lx-fp3*145;
+          var oy3=ly-fp3*32+fp3*fp3*18;
+          hx1.strokeStyle='rgba(100,200,255,'+(0.2+fp3*0.35)+')';hx1.lineWidth=1.5;hx1.lineCap='round';
+          hx1.beginPath();hx1.moveTo(lx,ly);
+          for(var ti=1;ti<=10;ti++){
+            var tf=fp3*(1-ti*0.09);
+            hx1.lineTo(lx-tf*145,ly-tf*32+tf*tf*18);
+          }
+          hx1.stroke();hx1.lineCap='butt';
+          if(ox>-10){hx1.fillStyle='#4499ff';hx1.beginPath();hx1.arc(ox,oy3,4.5,0,6.28);hx1.fill();}
+        }
+      }
+
+      // ── 2. GRAVITY WELL ──
+      function drawHint2(t){
+        if(!hx2)return;
+        hx2.clearRect(0,0,240,80);
+        hx2.globalAlpha=1;hx2.shadowBlur=0;
+        var ph=(t%3600)/3600;
+        // finger appears below the straight-line trajectory
+        var wfx=130,wfy=55; // well: in front of and below planet path
+        var pty=22; // planet travels at y=22
+
+        // planet position along a gently curving path
+        // straight at first, then bends downward as well pulls it
+        var ptx,ptcury;
+        if(ph<0.35){
+          // straight section — planet moving right
+          ptx=15+(ph/0.35)*115; ptcury=pty; // linear — constant speed
+        } else {
+          // well active — path curves downward toward well
+          var wp=(ph-0.35)/0.65; // linear — no easing
+          ptx=130+wp*90; // continues rightward
+          // y gently bends down toward well then levels off
+          ptcury=pty+wp*wp*22;
+        }
+
+        // draw trail — yellow while straight, shifts blue as it bends
+        var trailColor=ph<0.35?'rgba(255,200,60,0.45)':'rgba(100,200,255,0.45)';
+        hx2.strokeStyle=trailColor;hx2.lineWidth=1.3;hx2.lineCap='round';
+        hx2.beginPath();
+        // sample a few trail points behind current position
+        for(var ti2=8;ti2>=0;ti2--){
+          var tph=ph-ti2*0.028;
+          if(tph<0) continue;
+          var tpx,tpy;
+          if(tph<0.35){ tpx=15+(tph/0.35)*115; tpy=pty; }
+          else{ var twp=(tph-0.35)/0.65; tpx=130+twp*90; tpy=pty+twp*twp*22; }
+          if(ti2===8||tpx<ptx-80) hx2.moveTo(tpx,tpy);
+          else hx2.lineTo(tpx,tpy);
+        }
+        hx2.lineTo(ptx,ptcury);
+        hx2.stroke();hx2.lineCap='butt';
+        // planet dot
+        hx2.fillStyle=ph<0.35?'#ddaa33':'#4499ff';
+        hx2.beginPath();hx2.arc(ptx,ptcury,4.5,0,6.28);hx2.fill();
+
+        // well + finger — appears at phase 0.3, below the trajectory line
+        if(ph>0.3){
+          var dep2=Math.min(1,hei((ph-0.3)/0.18));
+          var wr=Math.max(1,12+dep2*10);
+          var wg=hx2.createRadialGradient(wfx,wfy,1,wfx,wfy,wr+12);
+          wg.addColorStop(0,'rgba(200,100,255,'+(dep2*0.12)+')');wg.addColorStop(1,'rgba(180,60,255,0)');
+          hx2.fillStyle=wg;hx2.beginPath();hx2.arc(wfx,wfy,wr+12,0,6.28);hx2.fill();
+          hx2.strokeStyle='rgba(200,120,255,'+(0.15+dep2*0.45)+')';hx2.lineWidth=1;
+          hx2.beginPath();hx2.arc(wfx,wfy,wr,0,6.28);hx2.stroke();
+          hx2.fillStyle='rgba(240,190,255,'+(dep2*0.8)+')';
+          hx2.beginPath();hx2.arc(wfx,wfy,2+dep2*2,0,6.28);hx2.fill();
+          // finger below well
+          hx2.strokeStyle='rgba(255,255,255,'+(0.18+dep2*0.25)+')';hx2.lineWidth=1;
+          hx2.beginPath();hx2.arc(wfx,wfy+17,5,0,6.28);hx2.stroke();
+          hx2.fillStyle='rgba(255,255,255,'+(0.25+dep2*0.3)+')';
+          hx2.beginPath();hx2.arc(wfx,wfy+17,2,0,6.28);hx2.fill();
+        }
+      }
+
+      // ── 3. SUN MASS ──
+      function drawHint3(t){
+        if(!hx3)return;
+        hx3.clearRect(0,0,240,80);
+        hx3.globalAlpha=1;hx3.shadowBlur=0;hx3.shadowColor='transparent';
+        var ph=(t%5000)/5000;
+        var scx=120,scy=32,bx=20,by=64,bw=180,bh=5;
+        // 3 planets arrive at phases 0.05-0.18, 0.28-0.41, 0.51-0.64
+        var pdata=[
+          {s:0.05,e:0.18,fx:18,fy:14,col:'#4499ff'},
+          {s:0.28,e:0.41,fx:222,fy:18,col:'#22cc88'},
+          {s:0.51,e:0.64,fx:25,fy:58,col:'#cc44ff'}
+        ];
+        var mf=0;
+        for(var ii=0;ii<3;ii++){
+          if(ph>=pdata[ii].e) mf=(ii+1)/3;
+        }
+        var bhph=ph>0.74?hei((ph-0.74)/0.26):0;
+        var sr=Math.max(5,8+mf*9);
+        if(bhph<0.05){
+          // sun
+          var mr=~~(255),mg2=~~(220-mf*140),mb=~~(80+mf*175);
+          var sg2=hx3.createRadialGradient(scx-2,scy-2,1,scx,scy,sr);
+          sg2.addColorStop(0,'rgba(255,248,224,0.98)');
+          sg2.addColorStop(0.5,'rgba('+mr+','+mg2+','+mb+',0.95)');
+          sg2.addColorStop(1,'rgba('+~~(mr*0.4)+',20,20,0.9)');
+          hx3.fillStyle=sg2;hx3.beginPath();hx3.arc(scx,scy,sr,0,6.28);hx3.fill();
+          // flying planets
+          for(var jj=0;jj<3;jj++){
+            var pd=pdata[jj];
+            if(ph<pd.s||ph>pd.e)continue;
+            var pp2=hei((ph-pd.s)/(pd.e-pd.s));
+            var plx=pd.fx+(scx-pd.fx)*pp2,ply=pd.fy+(scy-pd.fy)*pp2;
+            hx3.globalAlpha=Math.max(0,1-pp2*0.6);
+            hx3.fillStyle=pd.col;hx3.beginPath();hx3.arc(plx,ply,3.5*(1-pp2*0.4),0,6.28);hx3.fill();
+            hx3.globalAlpha=1;
+          }
+        } else {
+          // black hole
+          var bhr=7+bhph*13;
+          for(var ri2=0;ri2<3;ri2++){
+            hx3.save();hx3.translate(scx,scy);hx3.scale(1,0.14+ri2*0.06);
+            hx3.strokeStyle='rgba('+(ri2<2?'255,180,80':'200,100,255')+','+(0.38-ri2*0.08)+')';
+            hx3.lineWidth=1.8-ri2*0.3;hx3.beginPath();hx3.arc(0,0,bhr*(1.5+ri2*0.5),0,6.28);hx3.stroke();
+            hx3.restore();
+          }
+          hx3.fillStyle='#000';hx3.beginPath();hx3.arc(scx,scy,bhr,0,6.28);hx3.fill();
+          hx3.strokeStyle='rgba(255,220,150,'+(0.45+bhph*0.4)+')';hx3.lineWidth=1.5;
+          hx3.beginPath();hx3.arc(scx,scy,bhr*1.1,0,6.28);hx3.stroke();
+          mf=1;
+        }
+        // bar
+        hx3.fillStyle='rgba(255,255,255,0.07)';hx3.fillRect(bx,by,bw,bh);
+        if(mf>0){
+          var bc=bhph>0.05?'rgba(200,80,255,':mf<0.6?'rgba(255,160,40,':'rgba(255,'+(~~(80-mf*50))+',20,';
+          hx3.fillStyle=bc+'0.85)';hx3.fillRect(bx,by,mf*bw,bh);
+        }
+        hx3.fillStyle=mf>0.88?'rgba(220,100,255,0.95)':'rgba(255,255,255,0.2)';
+        hx3.beginPath();hx3.arc(bx+bw+11,by+bh/2,4,0,6.28);hx3.fill();
+      }
+
+      function animHints(){
+        ht+=16;
+        var intro=document.getElementById('intro-overlay');
+        if(!intro||intro.style.display==='none')return;
+        try{drawHint1(ht);}catch(e){}
+        try{drawHint2(ht);}catch(e){}
+        try{drawHint3(ht);}catch(e){}
+        requestAnimationFrame(animHints);
+      }
+      requestAnimationFrame(animHints);
+    })();
+    </script>
   </div>
 </div>
 
@@ -272,34 +433,32 @@ canvas{display:block;position:fixed;top:0;left:0}
   </div>
   <!-- HOW TO PLAY TAB -->
   <div id="tab-howto" class="tab-content">
-    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">ORBit is a physics sandbox where you launch planets into orbit around a sun. Only blue and green stable orbits score. The sun grows every time it absorbs a planet — fill its mass bar and it collapses into a black hole, ending the game. Everything follows one rule: mass attracts mass.</p>
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">Launch planets into orbit around the sun. Blue orbits score points. The sun grows each time it absorbs a planet — fill its mass bar and it collapses into a black hole. Everything follows one rule: mass attracts mass.</p>
     <div class="how-section">
       <h3>Controls</h3>
-      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. Each orb takes longer to load than the last. Once ready, you have 10 seconds to launch — or it auto-fires toward the sun.</p></div></div>
-      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby orbs are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
-      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Orbs that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
-      <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Every planet the sun absorbs grows its mass. Watch the ☀ mass bar in the score panel. When it fills, the sun collapses — and devours everything on the map. That's game over.</p></div></div>
-      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>Each planet's trail and leader line shows its orbit state. <span style="color:#5599ff;">Blue dashes</span> = stable scoring orbit. <span style="color:#ddcc30;">Yellow</span> = moving away from sun. <span style="color:#e04030;">Red pulse</span> = falling in — act fast. Only blue orbits score.</p></div></div>
+      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. The trajectory line shows where it will go. Use the handle on the right edge to slide the launcher closer or further from the sun — closer means faster orbits. Each planet takes longer to load. You have 10 seconds to launch before it auto-fires toward the sun.</p></div></div>
+      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a channel that planets will follow. A light swipe nudges gently — a long hold can catch a fast-moving planet.</p></div></div>
+      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
+      <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Watch the ☀ mass bar in the score panel. When it fills, the sun collapses into a black hole and devours every planet on the map — each one still costs −10. That's game over.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>Each planet's trail and leader line shows its orbit state. <span style="color:#5599ff;">Blue</span> = stable, scoring orbit. <span style="color:#ddcc30;">Yellow</span> = drifting away from sun. <span style="color:#e04030;">Red</span> = falling in — act fast. Only blue orbits add to your score.</p></div></div>
     </div>
     <div class="how-section">
       <h3>Scoring</h3>
       <div class="score-pills">
-        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">stable (blue/green) planets only</div></div>
-        <div class="score-pill"><div class="val" style="color:#22cc88;">×n</div><div class="lbl">more orbs = bar fills faster</div></div>
-        <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum orbs to start scoring</div></div>
-        <div class="score-pill"><div class="val" style="color:#ff5555;">−10</div><div class="lbl">flat penalty per orb eaten</div></div>
+        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">blue stable planets per bar fill</div></div>
+        <div class="score-pill"><div class="val" style="color:#22cc88;">faster</div><div class="lbl">more planets = bar fills faster</div></div>
+        <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum planets to start scoring</div></div>
+        <div class="score-pill"><div class="val" style="color:#ff5555;">−10</div><div class="lbl">flat penalty per planet absorbed</div></div>
       </div>
-      <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:10px;line-height:1.6;">The sun penalty escalates: 1st orb eaten = −5, 2nd = −10, 3rd = −15. Watch the ☀ tracker in the corner.</p>
     </div>
     <div class="how-section">
       <h3>Tips</h3>
-      <div class="tip-row"><div class="tip-dot"></div><span>Watch the trajectory line before releasing — it curves toward the sun's gravity.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>Launch sideways to create elliptical orbits that cross the screen.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>Moving the sun reshapes every orbit at once.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>A gentle perpendicular nudge with the gravity well can rescue a red orb without sending it flying.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>Launcher cooldown grows with each orb launched — later orbs take up to 60s to load.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>Smaller planets add less mass to the sun than large ones — use them to play it safe.</span></div>
-      <div class="tip-row"><div class="tip-dot"></div><span>When the mass bar glows purple, the black hole is close. End your game and save your score.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Watch the trajectory line before releasing — a medium pull aimed sideways usually lands a stable orbit.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Slide the launcher handle up to launch closer to the sun — tighter, faster orbits.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Hold your finger in front of an incoming red planet — a deep well can redirect it to safety.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Smaller planets add less mass to the sun. Play small to delay the black hole.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>When the mass bar glows red, the black hole is close — end your game and save your score before it's too late.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>In Chill mode there's no cooldown, no scoring, and no black hole. Pure physics.</span></div>
     </div>
   </div>
   <!-- SCORES TAB -->
@@ -808,10 +967,8 @@ function drawPuck(){
       var ta=well.trail[ti-1],tb=well.trail[ti];
       var fade=1-tb.age;
       var tdep=(ta.dep+tb.dep)*0.5;
-      var alpha=fade*fade*(0.18+tdep*0.45);
-      var w=1.5+tdep*3;
-      ctx.strokeStyle="rgba(180,100,255,"+alpha+")";
-      ctx.lineWidth=w;
+      ctx.strokeStyle="rgba(180,100,255,"+(fade*fade*(0.15+tdep*0.3))+")";
+      ctx.lineWidth=1+tdep*2;
       ctx.beginPath();ctx.moveTo(ta.x,ta.y);ctx.lineTo(tb.x,tb.y);ctx.stroke();
     }
     ctx.lineCap="butt";
@@ -819,54 +976,42 @@ function drawPuck(){
 
   if(dep<=0.01)return;
   var x=well.x,y=well.y;
-  disturb(x,y,0.5*dep);
+  disturb(x,y,0.4*dep);
 
-  // ── LARGE OUTER GLOW — visible under thumb ──
-  // Big enough that player sees it even with their finger on screen
-  var glowR=55+dep*40; // 55-95px — clearly visible around thumb
+  // small tight inner glow — just around fingertip, doesn't cover fabric
+  var glowR=28+dep*22; // max 50px — visible but not obstructive
   var glow=ctx.createRadialGradient(x,y,0,x,y,glowR);
-  glow.addColorStop(0,"rgba(180,80,255,"+(0.06+dep*0.1)+")");
-  glow.addColorStop(0.3,"rgba(160,60,255,"+(0.04+dep*0.08)+")");
-  glow.addColorStop(0.7,"rgba(120,40,255,"+(0.02+dep*0.04)+")");
-  glow.addColorStop(1,"rgba(100,30,200,0)");
+  glow.addColorStop(0,"rgba(200,120,255,"+(0.1+dep*0.18)+")");
+  glow.addColorStop(0.5,"rgba(160,80,255,"+(0.04+dep*0.08)+")");
+  glow.addColorStop(1,"rgba(120,50,200,0)");
   ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,glowR,0,6.28);ctx.fill();
 
-  // ── OUTER RING — large, clear, shows influence radius ──
-  // This ring is big enough to see around your thumb
-  var outerR=45+dep*25;
-  ctx.strokeStyle="rgba(200,120,255,"+(0.25+dep*0.35)+")";
-  ctx.lineWidth=1.5+dep;
-  ctx.setLineDash([6,5]);
-  ctx.beginPath();ctx.arc(x,y,outerR,0,6.28);ctx.stroke();
-  ctx.setLineDash([]);
-
-  // ── INNER RINGS — appear progressively with depth ──
-  var innerRings=[{r:28,minDep:0.1},{r:18,minDep:0.3},{r:10,minDep:0.6}];
-  for(var ri=0;ri<innerRings.length;ri++){
-    var ir=innerRings[ri];
-    if(dep<ir.minDep)continue;
-    var iDep=(dep-ir.minDep)/(1-ir.minDep);
-    ctx.strokeStyle="rgba(220,140,255,"+(0.2+iDep*0.35)+")";
-    ctx.lineWidth=0.8+iDep*0.5;
-    ctx.beginPath();ctx.arc(x,y,ir.r*(0.8+dep*0.2),0,6.28);ctx.stroke();
+  // 2 tight rings showing depth — small enough fabric still shows around them
+  var rings=[{r:32+dep*14,minDep:0},{r:20+dep*8,minDep:0.2}];
+  for(var ri=0;ri<rings.length;ri++){
+    var rg=rings[ri];
+    if(dep<rg.minDep)continue;
+    var rd=(dep-rg.minDep)/Math.max(0.01,1-rg.minDep);
+    ctx.strokeStyle="rgba(200,130,255,"+(0.2+rd*0.4)+")";
+    ctx.lineWidth=0.7+rd*0.6;
+    ctx.beginPath();ctx.arc(x,y,rg.r,0,6.28);ctx.stroke();
   }
 
-  // ── CENTER BURST — shows power level ──
-  var centerR=8+dep*14;
-  var cg=ctx.createRadialGradient(x,y,0,x,y,centerR);
-  cg.addColorStop(0,"rgba(255,220,255,"+(0.5+dep*0.45)+")");
-  cg.addColorStop(0.4,"rgba(200,100,255,"+(0.25+dep*0.35)+")");
-  cg.addColorStop(1,"rgba(150,50,255,0)");
-  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,centerR,0,6.28);ctx.fill();
+  // tiny bright center dot — shows exact touch point
+  var dotR=3+dep*5;
+  var cg=ctx.createRadialGradient(x,y,0,x,y,dotR);
+  cg.addColorStop(0,"rgba(240,200,255,"+(0.6+dep*0.4)+")");
+  cg.addColorStop(1,"rgba(180,80,255,0)");
+  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,dotR,0,6.28);ctx.fill();
 
-  // ── FABRIC RIPPLE LINES — 4 lines radiating out showing spacetime distortion ──
-  if(dep>0.2){
-    ctx.strokeStyle="rgba(180,100,255,"+(dep*0.2)+")";
-    ctx.lineWidth=0.5;
+  // radiating fabric lines — subtle distortion indicator
+  if(dep>0.15){
+    ctx.strokeStyle="rgba(180,100,255,"+(dep*0.15)+")";
+    ctx.lineWidth=0.4;
     for(var ri2=0;ri2<4;ri2++){
       var ra=ri2*1.571+well.holdTime*0.0005;
-      var rl=outerR*(0.6+dep*0.5);
-      ctx.beginPath();ctx.moveTo(x+Math.cos(ra)*centerR,y+Math.sin(ra)*centerR);
+      var rl=glowR*(1.2+dep*0.5);
+      ctx.beginPath();ctx.moveTo(x+Math.cos(ra)*dotR,y+Math.sin(ra)*dotR);
       ctx.lineTo(x+Math.cos(ra)*rl,y+Math.sin(ra)*rl);ctx.stroke();
     }
   }
@@ -961,6 +1106,40 @@ function simulateTraj(sx,sy,vx,vy,steps){
     pts.push({x:x,y:y});
   }
   return pts;
+}
+
+function drawLauncherHandle(lx,ly){
+  var trackX=W-24;
+  var trackTop=sun.y+sun.r+50;
+  var trackBot=H-30;
+  var handleY=launcher.y;
+  // track line
+  ctx.strokeStyle="rgba(180,220,255,0.14)";ctx.lineWidth=1;
+  ctx.setLineDash([3,6]);
+  ctx.beginPath();ctx.moveTo(trackX,trackTop);ctx.lineTo(trackX,trackBot);ctx.stroke();
+  ctx.setLineDash([]);
+  // connector from platform center to handle
+  ctx.strokeStyle="rgba(180,220,255,0.07)";ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(trackX,handleY);ctx.stroke();
+  // handle pill
+  var hPulse=0.5+Math.sin(time*0.0018)*0.5;
+  ctx.fillStyle="rgba(180,220,255,"+(0.16+hPulse*0.08)+")";
+  ctx.strokeStyle="rgba(180,220,255,"+(0.45+hPulse*0.15)+")";
+  ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.roundRect(trackX-12,handleY-14,24,28,7);ctx.fill();ctx.stroke();
+  // grip lines
+  ctx.strokeStyle="rgba(180,220,255,0.45)";ctx.lineWidth=1;
+  for(var gi=0;gi<3;gi++){
+    var gy=handleY-4+gi*4;
+    ctx.beginPath();ctx.moveTo(trackX-6,gy);ctx.lineTo(trackX+6,gy);ctx.stroke();
+  }
+  // arrows
+  ctx.strokeStyle="rgba(180,220,255,"+(0.3+hPulse*0.2)+")";ctx.lineWidth=1.2;ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(trackX,handleY-22);ctx.lineTo(trackX,handleY-30);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(trackX-4,handleY-26);ctx.lineTo(trackX,handleY-30);ctx.lineTo(trackX+4,handleY-26);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(trackX,handleY+22);ctx.lineTo(trackX,handleY+30);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(trackX-4,handleY+26);ctx.lineTo(trackX,handleY+30);ctx.lineTo(trackX+4,handleY+26);ctx.stroke();
+  ctx.lineCap="butt";
 }
 
 function drawLauncher(t){
@@ -1096,31 +1275,7 @@ function drawLauncher(t){
   ctx.strokeStyle='rgba('+hiC[0]+','+hiC[1]+','+hiC[2]+',0.35)';ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.stroke();
   if(pt.ring){ctx.save();ctx.translate(previewX,previewY);ctx.scale(1,0.2);ctx.strokeStyle='rgba('+tintC[0]+','+tintC[1]+','+tintC[2]+',0.25)';ctx.lineWidth=pr*0.1;ctx.beginPath();ctx.arc(0,0,pr*1.7,0,6.28);ctx.stroke();ctx.restore();}
 
-  // ── VERTICAL TRACK + HANDLE (right side) ──
-  var trackX=W-22;
-  var trackTop=sun.y+sun.r+50;
-  var trackBot=H-30;
-  var handleY=launcher.y;
-  // track line
-  ctx.strokeStyle="rgba(180,220,255,0.08)";ctx.lineWidth=1;
-  ctx.setLineDash([3,6]);
-  ctx.beginPath();ctx.moveTo(trackX,trackTop);ctx.lineTo(trackX,trackBot);ctx.stroke();
-  ctx.setLineDash([]);
-  // connector from platform to handle
-  ctx.strokeStyle="rgba(180,220,255,0.05)";ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(trackX,handleY);ctx.stroke();
-  // handle grip pill
-  var hPulse=0.5+Math.sin(time*0.002)*0.2;
-  ctx.fillStyle="rgba(180,220,255,"+(0.12+hPulse*0.05)+")";
-  ctx.strokeStyle="rgba(180,220,255,"+(0.28+hPulse*0.1)+")";
-  ctx.lineWidth=1;
-  ctx.beginPath();ctx.roundRect(trackX-10,handleY-13,20,26,6);ctx.fill();ctx.stroke();
-  // grip lines
-  ctx.strokeStyle="rgba(180,220,255,0.3)";ctx.lineWidth=0.8;
-  for(var gi=0;gi<3;gi++){
-    var gy=handleY-4+gi*4;
-    ctx.beginPath();ctx.moveTo(trackX-5,gy);ctx.lineTo(trackX+5,gy);ctx.stroke();
-  }
+  drawLauncherHandle(lx,ly);
 }
 
 function autoLaunch(){
@@ -1218,12 +1373,12 @@ if(o.suctioning){
   return;
 }var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;// circular soft boundary — tight push-back band near edge, invisible otherwise
 var bx=o.x-W/2,by=o.y-H/2,bd=Math.sqrt(bx*bx+by*by);
-var mD=Math.max(W,H)*0.9; // well beyond screen
-var pushZone=mD*0.08; // push starts 8% before boundary
+var mD=Math.max(W,H)*0.65; // well beyond screen
+var pushZone=mD*0.12; // push starts 8% before boundary
 var distToEdge=mD-bd;
 if(distToEdge<pushZone&&bd>1){
   // linear force that grows as you approach the edge
-  var pushStr=(1-(distToEdge/pushZone))*0.0008*dt;
+  var pushStr=(1-(distToEdge/pushZone))*0.0022*dt;
   o.vx-=bx/bd*pushStr;o.vy-=by/bd*pushStr;
 }
 // hard speed cap — prevents gravity-sling fling-outs
@@ -1383,12 +1538,13 @@ function drawOrb(o){
   ctx.save();ctx.translate(o.x,o.y);
   ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();
 
-  // ── BASE SPHERE GRADIENT ──
-  var bg=ctx.createRadialGradient(lx*0.8,ly*0.8,0,0,0,r*1.3);
-  bg.addColorStop(0,"rgba("+hi[0]+","+hi[1]+","+hi[2]+","+(0.9+li*0.1)+")");
-  bg.addColorStop(0.3,"rgba("+base[0]+","+base[1]+","+base[2]+",0.95)");
-  bg.addColorStop(0.7,"rgba("+~~(base[0]*0.55)+","+~~(base[1]*0.55)+","+~~(base[2]*0.55)+",0.95)");
-  bg.addColorStop(1,"rgba("+dark[0]+","+dark[1]+","+dark[2]+",0.98)");
+  // ── BASE SPHERE GRADIENT — lit side bright, dark side very dark ──
+  // Radial from sun-facing point to anti-sun point for directional lighting
+  var bg=ctx.createRadialGradient(lx*1.1,ly*1.1,0,lx*1.1,ly*1.1,r*2.2);
+  bg.addColorStop(0,"rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.98)");
+  bg.addColorStop(0.25,"rgba("+base[0]+","+base[1]+","+base[2]+",0.95)");
+  bg.addColorStop(0.55,"rgba("+~~(base[0]*0.25)+","+~~(base[1]*0.25)+","+~~(base[2]*0.25)+",0.97)");
+  bg.addColorStop(1,"rgba("+~~(dark[0]*0.15)+","+~~(dark[1]*0.15)+","+~~(dark[2]*0.15)+",1.0)");
   ctx.fillStyle=bg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
 
   // ── TYPE-SPECIFIC SURFACE DETAILS ──
@@ -1494,16 +1650,20 @@ function drawOrb(o){
   ctx.fillStyle=hlg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
 
   // ── TERMINATOR (dark side shadow) ──
-  var sh=ctx.createRadialGradient(-snx*r*0.25,-sny*r*0.25,r*0.35,-snx*r*0.1,-sny*r*0.1,r*1.05);
-  sh.addColorStop(0,"rgba(0,0,0,0)");
-  sh.addColorStop(0.5,"rgba(0,0,0,0.12)");
-  sh.addColorStop(0.8,"rgba(0,0,5,0.5)");
-  sh.addColorStop(1,"rgba(0,0,10,0.88)"); // deeper dark side
+  // terminator — strong dark side, sun is the only light source
+  // terminator — linear gradient cutting planet roughly in half
+  // from sun-facing edge (bright) to anti-sun edge (near-black)
+  var sh=ctx.createLinearGradient(snx*r,sny*r,-snx*r,-sny*r);
+  sh.addColorStop(0,"rgba(0,0,0,0)");      // lit side — transparent
+  sh.addColorStop(0.48,"rgba(0,0,0,0)");   // stays clear until midpoint
+  sh.addColorStop(0.56,"rgba(0,0,0,0.25)"); // soft terminator
+  sh.addColorStop(1,"rgba(0,0,0,0.38)");   // dark side — 35%
   ctx.fillStyle=sh;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
-  // limb darkening — edge of sphere always darker (realistic atmosphere effect)
-  var ld=ctx.createRadialGradient(0,0,r*0.65,0,0,r);
+  // limb darkening around entire edge
+  var ld=ctx.createRadialGradient(0,0,r*0.5,0,0,r);
   ld.addColorStop(0,"rgba(0,0,0,0)");
-  ld.addColorStop(1,"rgba(0,0,8,0.45)");
+  ld.addColorStop(0.6,"rgba(0,0,0,0.08)");
+  ld.addColorStop(1,"rgba(0,0,0,0.65)");
   ctx.fillStyle=ld;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
 
   ctx.restore();
@@ -1547,7 +1707,7 @@ function applyPuck(){
   var wSpd=Math.sqrt(wvx*wvx+wvy*wvy);
 
   // influence radius grows with depth
-  var radius=WELL_ATTRACT*(0.4+dep*0.6); // 72px at min, 180px at full depth
+  var radius=WELL_ATTRACT*(0.25+dep*0.45); // 45px min, 126px max — more localized
 
   // sun: scales with depth
   var sdx=wx-sun.x,sdy=wy-sun.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);
@@ -1652,8 +1812,12 @@ window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){
     if(!paused){paused=true;lastT=0;window._autoPaused=true;}
+    // show menu so player can resume, save, or restart when they return
+    var mo=document.getElementById('menu-overlay');
+    if(mo&&mo.style.display==='none')mo.style.display='flex';
+    showTab('game');
   } else {
-    if(window._autoPaused){paused=false;lastT=0;window._autoPaused=false;}
+    // don't auto-resume — let player choose via menu
   }
 });
 window.addEventListener("pagehide",function(){paused=true;lastT=0;});
@@ -2341,7 +2505,7 @@ if(blackHole.flash>0){
   ctx.fillStyle="rgba(255,220,100,"+Math.max(0,blackHole.flash)+")";
   ctx.fillRect(0,0,W,H);
 }
-drawPuck();drawLauncherIdleHint();drawLauncher(time);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
+drawPuck();drawLauncherIdleHint();drawLauncher(time);drawLauncherHandle(launcher.x,launcher.y);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
 resize();requestAnimationFrame(frame);
 // expose menu functions to global scope for onclick handlers
 window.startGame=startGame;

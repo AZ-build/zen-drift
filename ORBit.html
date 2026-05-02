@@ -1223,7 +1223,7 @@ var pushZone=mD*0.08; // push starts 8% before boundary
 var distToEdge=mD-bd;
 if(distToEdge<pushZone&&bd>1){
   // linear force that grows as you approach the edge
-  var pushStr=(1-(distToEdge/pushZone))*0.006*dt;
+  var pushStr=(1-(distToEdge/pushZone))*0.0008*dt;
   o.vx-=bx/bd*pushStr;o.vy-=by/bd*pushStr;
 }
 // hard speed cap — prevents gravity-sling fling-outs

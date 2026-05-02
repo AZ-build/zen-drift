@@ -196,7 +196,7 @@ canvas{display:block;position:fixed;top:0;left:0}
       <line x1="19.1" y1="4.9" x2="17" y2="7" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
       <line x1="7" y1="17" x2="4.9" y2="19.1" stroke="#ff9933" stroke-width="1.2" stroke-linecap="round"/>
       <circle cx="12" cy="12" r="5.5" fill="url(#hsg)"/>
-    </svg><span><strong style="color:rgba(255,160,40,0.95);">Watch the sun's mass bar</strong> — feed it too much and it collapses into a black hole.</span>
+    </svg><span><strong style="color:rgba(255,160,40,0.95);">Watch the sun's mass bar</strong> — each absorbed planet grows it. Fill it and game over.</span>
       </div>
     </div>
   </div>
@@ -279,7 +279,7 @@ canvas{display:block;position:fixed;top:0;left:0}
       <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch anywhere to create a gravity well. Nearby orbs are pulled toward your finger. Hold still to trap them, move slowly to guide them, flick fast to sling them away.</p></div></div>
       <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Orbs that get too close are absorbed — and the penalty escalates every time. Don't feed it.</p></div></div>
       <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Every planet the sun absorbs grows its mass. Watch the ☀ mass bar in the score panel. When it fills, the sun collapses — and devours everything on the map. That's game over.</p></div></div>
-      <div class="how-card"><div class="how-icon">◉</div><div><h4>Stability colors</h4><p><span style="color:#3399ff;">Blue</span> and <span style="color:#22cc88;">green</span> = stable, scoring orbits. Yellow → orange → <span style="color:#ff4444;">red</span> = decaying, non-scoring. Nudge red orbs back to stability.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>Each planet's trail and leader line shows its orbit state. <span style="color:#5599ff;">Blue dashes</span> = stable scoring orbit. <span style="color:#ddcc30;">Yellow</span> = moving away from sun. <span style="color:#e04030;">Red pulse</span> = falling in — act fast. Only blue orbits score.</p></div></div>
     </div>
     <div class="how-section">
       <h3>Scoring</h3>
@@ -287,7 +287,7 @@ canvas{display:block;position:fixed;top:0;left:0}
         <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">stable (blue/green) planets only</div></div>
         <div class="score-pill"><div class="val" style="color:#22cc88;">×n</div><div class="lbl">more orbs = bar fills faster</div></div>
         <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum orbs to start scoring</div></div>
-        <div class="score-pill"><div class="val" style="color:#ff5555;">−5×n</div><div class="lbl">each eaten orb costs more</div></div>
+        <div class="score-pill"><div class="val" style="color:#ff5555;">−10</div><div class="lbl">flat penalty per orb eaten</div></div>
       </div>
       <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:10px;line-height:1.6;">The sun penalty escalates: 1st orb eaten = −5, 2nd = −10, 3rd = −15. Watch the ☀ tracker in the corner.</p>
     </div>
@@ -368,96 +368,162 @@ function stepW(){for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols
 function wAt(px,py){var gxf=px/CELL+1,gyf=py/CELL+1,gx=~~gxf,gy=~~gyf;if(gx<0||gx>=cols-1||gy<0||gy>=rows-1)return 0;var fx=gxf-gx,fy=gyf-gy,i=gy*cols+gx;return wH[i]*(1-fx)*(1-fy)+wH[i+1]*fx*(1-fy)+wH[i+cols]*(1-fx)*fy+wH[i+cols+1]*fx*fy;}
 function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?Math.min(8,1+blackHole.t/500):1;var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.depth>0.01){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;if(fd<200){var fs=(600+well.depth*well.depth*8000)/(fd*fd+80);wx+=fdx/fd*fs*well.depth;wy+=fdy/fd*fs*well.depth;}}return{x:wx,y:wy};}
 function drawGrid(t){
-  var sp=22;
-  // slow diagonal drift — solar system moving through space
-  var driftX=0;
-  var driftY=0;
+  var sp=20; // slightly tighter grid
 
-  // horizontal lines (drift vertically)
+  // ── HORIZONTAL LINES ──
   for(var py=-sp;py<H+sp;py+=sp){
-    var ry=py+driftY; // drifted y position
-    ctx.beginPath();var s=false,wA=0;
-    for(var px=0;px<W;px+=4){
-      var h=wAt(px,ry),g=gWarp(px,ry);
+    ctx.beginPath();var s=false,wA=0,totalWarp=0;
+    for(var px=0;px<W;px+=6){
+      var h=wAt(px,py),g=gWarp(px,py);
       wA=Math.max(wA,Math.abs(h));
-      if(!s){ctx.moveTo(px+g.x+driftX*0.3,ry+h*4+g.y);s=true;}
-      else ctx.lineTo(px+g.x+driftX*0.3,ry+h*4+g.y);
+      totalWarp+=Math.sqrt(g.x*g.x+g.y*g.y);
+      if(!s){ctx.moveTo(px+g.x,py+h*5+g.y);s=true;}
+      else ctx.lineTo(px+g.x,py+h*5+g.y);
     }
-    var dS=Math.abs(ry-sun.y),sP=Math.max(0,1-dS/(Math.max(W,H)*0.45));
-    ctx.strokeStyle=rgba(stabCol(0.05),Math.min(0.55,0.045+sP*0.18+wA*0.1));
-    ctx.lineWidth=0.55+sP*0.7;ctx.stroke();
+    var dS=Math.abs(py-sun.y);
+    var sP=Math.max(0,1-dS/(Math.max(W,H)*0.42)); // sun proximity
+    var avgWarp=Math.min(1,totalWarp/(W/4)*0.015);  // how much this line is warped
+    // color: near sun=warm, warped by well=purple tint, default=cool blue-grey
+    var alpha=Math.min(0.6,0.04+sP*0.22+wA*0.12+avgWarp*0.15);
+    var lw=0.5+sP*0.9+avgWarp*0.4;
+    // tint: purple where well warps, orange-teal near sun
+    if(well.depth>0.1&&avgWarp>0.1){
+      ctx.strokeStyle="rgba(180,100,255,"+alpha*well.depth+")";
+    } else {
+      ctx.strokeStyle="rgba(60,120,160,"+alpha+")";
+    }
+    ctx.lineWidth=lw;ctx.stroke();
+
+    // bright accent line every 4th line — gives depth/layering
+    if(Math.round((py+1000)/sp)%4===0&&sP>0.1){
+      ctx.strokeStyle="rgba(100,180,220,"+(sP*0.12)+")";
+      ctx.lineWidth=0.3;ctx.stroke();
+    }
   }
 
-  // vertical lines (drift horizontally)
+  // ── VERTICAL LINES ──
   for(var px=-sp;px<W+sp;px+=sp){
-    var rx=px+driftX; // drifted x position
-    ctx.beginPath();var s=false,wA=0;
-    for(var py2=0;py2<H;py2+=4){
-      var h=wAt(rx,py2),g=gWarp(rx,py2);
+    ctx.beginPath();var s=false,wA=0,totalWarp=0;
+    for(var py2=0;py2<H;py2+=6){
+      var h=wAt(px,py2),g=gWarp(px,py2);
       wA=Math.max(wA,Math.abs(h));
-      if(!s){ctx.moveTo(rx+h*4+g.x,py2+g.y+driftY*0.3);s=true;}
-      else ctx.lineTo(rx+h*4+g.x,py2+g.y+driftY*0.3);
+      totalWarp+=Math.sqrt(g.x*g.x+g.y*g.y);
+      if(!s){ctx.moveTo(px+h*5+g.x,py2+g.y);s=true;}
+      else ctx.lineTo(px+h*5+g.x,py2+g.y);
     }
-    var dS=Math.abs(rx-sun.x),sP=Math.max(0,1-dS/(Math.max(W,H)*0.45));
-    ctx.strokeStyle=rgba(stabCol(0.1),Math.min(0.42,0.035+sP*0.14+wA*0.07));
-    ctx.lineWidth=0.4+sP*0.5;ctx.stroke();
+    var dS=Math.abs(px-sun.x);
+    var sP=Math.max(0,1-dS/(Math.max(W,H)*0.42));
+    var avgWarp=Math.min(1,totalWarp/(H/4)*0.015);
+    var alpha=Math.min(0.45,0.03+sP*0.16+wA*0.08+avgWarp*0.12);
+    var lw=0.4+sP*0.7+avgWarp*0.3;
+    if(well.depth>0.1&&avgWarp>0.1){
+      ctx.strokeStyle="rgba(180,100,255,"+alpha*well.depth+")";
+    } else {
+      ctx.strokeStyle="rgba(40,100,140,"+alpha+")";
+    }
+    ctx.lineWidth=lw;ctx.stroke();
   }
 }
 
-var stars=[];function initStars(){stars=[];for(var i=0;i<150;i++){var b=Math.random()<0.12;stars.push({x:Math.random()*W,y:Math.random()*H,a:b?0.15+Math.random()*0.25:0.04+Math.random()*0.1,r:b?0.6+Math.random():0.3+Math.random()*0.5,sp:0.0003+Math.random()*0.0015,po:Math.random()*6.28,w:Math.random()});}}
-function drawStars(t){for(var i=0;i<stars.length;i++){var s=stars[i];if(s.x>W||s.y>H)continue;var a=s.a*(0.6+Math.sin(t*s.sp+s.po)*0.4);if(a<0.01)continue;ctx.fillStyle="rgba("+(200+~~(s.w*55))+","+(200+~~(s.w*40))+","+(255-~~(s.w*60))+","+a+")";ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,6.28);ctx.fill();}}
-/* === NEBULA === */
-var nebulae=[];
-function initNebula(){
-  nebulae=[];
-  // 6 large soft clouds, each a different psychedelic hue
-  var hues=[280,200,320,160,240,30]; // violet,cyan,magenta,teal,blue,amber
-  for(var i=0;i<6;i++){
-    nebulae.push({
-      x:Math.random()*W,y:Math.random()*H,
-      rx:W*(0.25+Math.random()*0.35),ry:H*(0.2+Math.random()*0.3),
-      hue:hues[i],sat:60+Math.random()*30,
-      alpha:0.022+Math.random()*0.018,
-      angle:Math.random()*6.28,
-      driftX:(Math.random()-0.5)*0.0015,driftY:(Math.random()-0.5)*0.0012,
-      ph:Math.random()*6.28,breathSp:0.00008+Math.random()*0.00006
+var stars=[];function initStars(){
+  stars=[];
+  for(var i=0;i<400;i++){
+    var tier=Math.random();
+    var bright=tier<0.03; // 3% very bright with cross spike
+    var med=tier<0.15;    // 15% medium
+    stars.push({
+      x:Math.random()*W, y:Math.random()*H,
+      a:bright?0.7+Math.random()*0.3:med?0.25+Math.random()*0.35:0.06+Math.random()*0.14,
+      r:bright?1.4+Math.random()*0.8:med?0.7+Math.random()*0.7:0.25+Math.random()*0.45,
+      sp:0.0001+Math.random()*0.0018,
+      po:Math.random()*6.28,
+      w:Math.random(),
+      spike:bright // very bright stars get a cross spike
     });
   }
-  // 3 smaller brighter accent puffs
-  for(var i=0;i<3;i++){
+}
+function drawStars(t){
+  for(var i=0;i<stars.length;i++){
+    var s=stars[i];
+    var a=s.a*(0.55+Math.sin(t*s.sp+s.po)*0.45);
+    if(a<0.01)continue;
+    var r=~~(215+s.w*40),g=~~(215+s.w*30),b=~~(255-s.w*50);
+    ctx.fillStyle="rgba("+r+","+g+","+b+","+a+")";
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,6.28);ctx.fill();
+    // cross spike for very bright stars
+    if(s.spike&&a>0.3){
+      var sl=s.r*4;
+      ctx.strokeStyle="rgba("+r+","+g+","+b+","+(a*0.3)+")";
+      ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(s.x-sl,s.y);ctx.lineTo(s.x+sl,s.y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(s.x,s.y-sl);ctx.lineTo(s.x,s.y+sl);ctx.stroke();
+    }
+  }
+}
+/* === NEBULA === */
+var nebulae=[];
+
+function initNebula(){
+  nebulae=[];
+  // Just 2-3 nebulae, positioned off to the sides, not center stage
+  var configs=[
+    {hue:280,sat:70,x:0.15,y:0.25,rx:0.18,ry:0.14},  // violet top-left
+    {hue:200,sat:65,x:0.82,y:0.65,rx:0.16,ry:0.20},  // cyan right
+    {hue:340,sat:75,x:0.45,y:0.08,rx:0.12,ry:0.09},  // rose top
+  ];
+  for(var i=0;i<configs.length;i++){
+    var c=configs[i];
     nebulae.push({
-      x:Math.random()*W,y:Math.random()*H,
-      rx:W*(0.1+Math.random()*0.18),ry:H*(0.08+Math.random()*0.15),
-      hue:[340,180,270][i],sat:70,
-      alpha:0.03+Math.random()*0.02,
+      x:c.x*W, y:c.y*H,
+      rx:c.rx*W, ry:c.ry*H,
+      hue:c.hue, sat:c.sat,
+      alpha:0.06+Math.random()*0.03,
       angle:Math.random()*6.28,
-      driftX:(Math.random()-0.5)*0.002,driftY:(Math.random()-0.5)*0.002,
-      ph:Math.random()*6.28,breathSp:0.0001+Math.random()*0.00008
+      driftX:(Math.random()-0.5)*0.001, driftY:(Math.random()-0.5)*0.0008,
+      ph:Math.random()*6.28, breathSp:0.00006+Math.random()*0.00004,
+      // wisp offsets — make it irregular not a perfect oval
+      wisps:[
+        {dx:(Math.random()-0.5)*0.6,dy:(Math.random()-0.5)*0.6,scale:0.5+Math.random()*0.4,hOff:Math.floor(Math.random()*40)-20},
+        {dx:(Math.random()-0.5)*0.8,dy:(Math.random()-0.5)*0.8,scale:0.3+Math.random()*0.3,hOff:Math.floor(Math.random()*60)-30},
+        {dx:(Math.random()-0.5)*0.4,dy:(Math.random()-0.5)*0.4,scale:0.6+Math.random()*0.35,hOff:Math.floor(Math.random()*30)},
+      ]
     });
   }
 }
 function drawNebula(t){
   for(var i=0;i<nebulae.length;i++){
     var n=nebulae[i];
-    // very slow drift
     n.x+=n.driftX;n.y+=n.driftY;
-    if(n.x<-n.rx)n.x=W+n.rx;if(n.x>W+n.rx)n.x=-n.rx;
-    if(n.y<-n.ry)n.y=H+n.ry;if(n.y>H+n.ry)n.y=-n.ry;
-    // gentle breathing
-    var breath=1+Math.sin(t*n.breathSp+n.ph)*0.15;
-    var rx=n.rx*breath,ry=n.ry*breath;
-    ctx.save();
-    ctx.translate(n.x,n.y);ctx.rotate(n.angle);
-    // layered radial gradients for soft cloud look
-    var g=ctx.createRadialGradient(0,0,0,0,0,Math.max(rx,ry));
-    g.addColorStop(0,"hsla("+n.hue+","+n.sat+"%,55%,"+(n.alpha*1.4)+")");
-    g.addColorStop(0.35,"hsla("+((n.hue+25)%360)+","+n.sat+"%,45%,"+(n.alpha*0.7)+")");
-    g.addColorStop(0.65,"hsla("+((n.hue+50)%360)+","+n.sat+"%,35%,"+(n.alpha*0.3)+")");
-    g.addColorStop(1,"hsla("+n.hue+","+n.sat+"%,20%,0)");
-    ctx.fillStyle=g;
-    ctx.scale(rx/Math.max(rx,ry),ry/Math.max(rx,ry));
-    ctx.beginPath();ctx.arc(0,0,Math.max(rx,ry),0,6.28);ctx.fill();
-    ctx.restore();
+    if(n.x<-n.rx*2)n.x=W+n.rx;if(n.x>W+n.rx*2)n.x=-n.rx;
+    if(n.y<-n.ry*2)n.y=H+n.ry;if(n.y>H+n.ry*2)n.y=-n.ry;
+
+    var breath=1+Math.sin(t*n.breathSp+n.ph)*0.08;
+    var rx=n.rx*breath, ry=n.ry*breath;
+
+    // draw multiple overlapping ellipses at offsets = wispy cloud look
+    for(var wi=-1;wi<n.wisps.length;wi++){
+      var wx=n.x, wy=n.y, wscale=1.0, wh=n.hue;
+      if(wi>=0){
+        var w=n.wisps[wi];
+        wx=n.x+rx*w.dx; wy=n.y+ry*w.dy;
+        wscale=w.scale; wh=(n.hue+w.hOff+360)%360;
+      }
+      var wrx=rx*wscale, wry=ry*wscale, mr=Math.max(wrx,wry);
+      ctx.save();
+      ctx.translate(wx,wy);
+      ctx.rotate(n.angle+(wi>=0?n.wisps[wi].dx*0.5:0));
+      var walpha=wi<0?n.alpha*1.8:n.alpha*(0.5+wscale*0.6);
+      var g=ctx.createRadialGradient(0,0,0,0,0,mr);
+      g.addColorStop(0,"hsla("+wh+","+n.sat+"%,65%,"+(walpha*2.2)+")");
+      g.addColorStop(0.2,"hsla("+((wh+15)%360)+","+n.sat+"%,50%,"+(walpha*1.4)+")");
+      g.addColorStop(0.5,"hsla("+((wh+35)%360)+","+~~(n.sat*0.8)+"%,32%,"+(walpha*0.6)+")");
+      g.addColorStop(0.8,"hsla("+wh+","+~~(n.sat*0.5)+"%,18%,"+(walpha*0.15)+")");
+      g.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle=g;
+      ctx.scale(wrx/mr,wry/mr);
+      ctx.beginPath();ctx.arc(0,0,mr,0,6.28);ctx.fill();
+      ctx.restore();
+    }
   }
 }
 
@@ -465,7 +531,7 @@ function drawNebula(t){
 var galaxies=[];
 function initGalaxies(){
   galaxies=[];
-  for(var i=0;i<4;i++){
+  for(var i=0;i<7;i++){
     galaxies.push({
       x:Math.random()*W, y:Math.random()*H,
       r:40+Math.random()*50,        // overall radius
@@ -473,7 +539,7 @@ function initGalaxies(){
       spin:0.00003+Math.random()*0.00004, // very slow rotation
       arms:2+Math.floor(Math.random()*2), // 2-3 arms
       hue:Math.floor(Math.random()*360),
-      alpha:0.06+Math.random()*0.06,
+      alpha:0.14+Math.random()*0.1,
       starCount:40+Math.floor(Math.random()*40),
       stars:[] // populated below
     });
@@ -505,19 +571,20 @@ function drawGalaxies(t){
     ctx.rotate(g.angle);
     ctx.scale(1,0.38); // flatten into disc shape
 
-    // soft glow core
-    var core=ctx.createRadialGradient(0,0,0,0,0,g.r*0.35);
-    core.addColorStop(0,"hsla("+g.hue+",70%,80%,"+(g.alpha*1.2)+")");
-    core.addColorStop(0.5,"hsla("+((g.hue+30)%360)+",60%,55%,"+(g.alpha*0.5)+")");
-    core.addColorStop(1,"hsla("+g.hue+",50%,30%,0)");
+    // bright core — more visible
+    var core=ctx.createRadialGradient(0,0,0,0,0,g.r*0.4);
+    core.addColorStop(0,"hsla("+g.hue+",80%,90%,"+(g.alpha*2.5)+")");
+    core.addColorStop(0.3,"hsla("+g.hue+",70%,70%,"+(g.alpha*1.5)+")");
+    core.addColorStop(0.7,"hsla("+((g.hue+30)%360)+",55%,45%,"+(g.alpha*0.6)+")");
+    core.addColorStop(1,"hsla("+g.hue+",40%,20%,0)");
     ctx.fillStyle=core;
-    ctx.beginPath();ctx.arc(0,0,g.r*0.35,0,6.28);ctx.fill();
+    ctx.beginPath();ctx.arc(0,0,g.r*0.4,0,6.28);ctx.fill();
 
-    // dust halo
+    // dust halo — more visible
     var halo=ctx.createRadialGradient(0,0,g.r*0.1,0,0,g.r);
-    halo.addColorStop(0,"hsla("+((g.hue+20)%360)+",50%,40%,"+(g.alpha*0.3)+")");
-    halo.addColorStop(0.5,"hsla("+g.hue+",40%,25%,"+(g.alpha*0.15)+")");
-    halo.addColorStop(1,"hsla("+g.hue+",30%,15%,0)");
+    halo.addColorStop(0,"hsla("+((g.hue+20)%360)+",60%,50%,"+(g.alpha*0.55)+")");
+    halo.addColorStop(0.4,"hsla("+g.hue+",45%,30%,"+(g.alpha*0.28)+")");
+    halo.addColorStop(1,"hsla("+g.hue+",30%,12%,0)");
     ctx.fillStyle=halo;
     ctx.beginPath();ctx.arc(0,0,g.r,0,6.28);ctx.fill();
 
@@ -526,7 +593,7 @@ function drawGalaxies(t){
       var st=g.stars[s];
       var r2=st.t*g.r;
       var sx=Math.cos(st.ang)*r2,sy=Math.sin(st.ang)*r2;
-      var sa=g.alpha*st.brightness*0.9;
+      var sa=g.alpha*st.brightness*1.8;
       ctx.fillStyle="hsla("+((g.hue+st.hueShift+360)%360)+",80%,85%,"+sa+")";
       ctx.beginPath();ctx.arc(sx,sy,st.size,0,6.28);ctx.fill();
     }
@@ -620,9 +687,8 @@ function updateBlackHole(dt){
         if(!orbs[i].dead&&!orbs[i].suctioning){
           orbs[i].suctioning=true;orbs[i].suctionT=0;
           // apply penalty for each devoured orb
-          orbsEaten++;var eatPenalty=orbsEaten*5;
-          score-=eatPenalty;scorePenalty=1;
-          penaltyPops.push({x:sun.x+(Math.random()-0.5)*30,y:sun.y-sun.r-10,vy:0,life:1,val:eatPenalty});
+          orbsEaten++;score-=10;scorePenalty=1;
+          penaltyPops.push({x:sun.x+(Math.random()-0.5)*30,y:sun.y-sun.r-10,vy:0,life:1,val:10});
           eaten=true;break;
         }
       }
@@ -644,7 +710,8 @@ function drawSun(t){
   if(blackHole.active){
     drawBlackHole(t);return;
   }
-  var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02);
+  sun.glow=sun.glow||0;sun.glow*=0.92; // decay sun flash
+var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02+(sun.glow||0)*0.06);
 
   // warm outer glow
   var g3=ctx.createRadialGradient(sx,sy,0,sx,sy,R*6);
@@ -733,18 +800,18 @@ function drawSun(t){
 
 function drawPuck(){
   var dep=well.depth;
-  var hasTrail=well.trail.length>1;
 
-  // ── FINGER TRAIL — channel in the fabric ──
-  if(hasTrail){
+  // ── FINGER TRAIL ──
+  if(well.trail.length>1){
+    ctx.lineCap="round";
     for(var ti=1;ti<well.trail.length;ti++){
       var ta=well.trail[ti-1],tb=well.trail[ti];
-      var fade=1-tb.age; // 1=fresh, 0=gone
+      var fade=1-tb.age;
       var tdep=(ta.dep+tb.dep)*0.5;
-      var alpha=fade*fade*(0.15+tdep*0.35);
-      var w=1+tdep*2.5;
-      ctx.strokeStyle="rgba(200,120,255,"+alpha+")";
-      ctx.lineWidth=w;ctx.lineCap="round";
+      var alpha=fade*fade*(0.18+tdep*0.45);
+      var w=1.5+tdep*3;
+      ctx.strokeStyle="rgba(180,100,255,"+alpha+")";
+      ctx.lineWidth=w;
       ctx.beginPath();ctx.moveTo(ta.x,ta.y);ctx.lineTo(tb.x,tb.y);ctx.stroke();
     }
     ctx.lineCap="butt";
@@ -752,42 +819,105 @@ function drawPuck(){
 
   if(dep<=0.01)return;
   var x=well.x,y=well.y;
-  disturb(x,y,0.4*dep);
+  disturb(x,y,0.5*dep);
 
-  // tight inner halo — not huge, just around the finger
-  var haloR=20+dep*30; // max 50px — stays tight
-  var halo=ctx.createRadialGradient(x,y,0,x,y,haloR);
-  halo.addColorStop(0,"rgba(200,100,255,"+(0.08+dep*0.18)+")");
-  halo.addColorStop(0.5,"rgba(160,70,255,"+(0.03+dep*0.08)+")");
-  halo.addColorStop(1,"rgba(120,50,255,0)");
-  ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,haloR,0,6.28);ctx.fill();
+  // ── LARGE OUTER GLOW — visible under thumb ──
+  // Big enough that player sees it even with their finger on screen
+  var glowR=55+dep*40; // 55-95px — clearly visible around thumb
+  var glow=ctx.createRadialGradient(x,y,0,x,y,glowR);
+  glow.addColorStop(0,"rgba(180,80,255,"+(0.06+dep*0.1)+")");
+  glow.addColorStop(0.3,"rgba(160,60,255,"+(0.04+dep*0.08)+")");
+  glow.addColorStop(0.7,"rgba(120,40,255,"+(0.02+dep*0.04)+")");
+  glow.addColorStop(1,"rgba(100,30,200,0)");
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,glowR,0,6.28);ctx.fill();
 
-  // 3 concentric rings showing gravity well depth — tighter, not expanding
-  var ringSpacings=[12,22,36];
-  for(var ri=0;ri<3;ri++){
-    var rr=ringSpacings[ri]*(0.5+dep*0.5); // scale with depth but stay small
-    var rAlpha=(0.06+dep*0.22)*(1-ri*0.25);
-    if(dep<(ri+1)*0.28)continue; // rings appear progressively as depth grows
-    ctx.strokeStyle="rgba(210,130,255,"+rAlpha+")";
-    ctx.lineWidth=0.6+dep*0.5;
-    ctx.setLineDash(ri===2?[2,4]:[]);
-    ctx.beginPath();ctx.arc(x,y,rr,0,6.28);ctx.stroke();
-    ctx.setLineDash([]);
+  // ── OUTER RING — large, clear, shows influence radius ──
+  // This ring is big enough to see around your thumb
+  var outerR=45+dep*25;
+  ctx.strokeStyle="rgba(200,120,255,"+(0.25+dep*0.35)+")";
+  ctx.lineWidth=1.5+dep;
+  ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.arc(x,y,outerR,0,6.28);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── INNER RINGS — appear progressively with depth ──
+  var innerRings=[{r:28,minDep:0.1},{r:18,minDep:0.3},{r:10,minDep:0.6}];
+  for(var ri=0;ri<innerRings.length;ri++){
+    var ir=innerRings[ri];
+    if(dep<ir.minDep)continue;
+    var iDep=(dep-ir.minDep)/(1-ir.minDep);
+    ctx.strokeStyle="rgba(220,140,255,"+(0.2+iDep*0.35)+")";
+    ctx.lineWidth=0.8+iDep*0.5;
+    ctx.beginPath();ctx.arc(x,y,ir.r*(0.8+dep*0.2),0,6.28);ctx.stroke();
   }
 
-  // singularity dot
-  var dotR=2+dep*6;
-  var cg=ctx.createRadialGradient(x,y,0,x,y,dotR);
-  cg.addColorStop(0,"rgba(240,190,255,"+(0.4+dep*0.55)+")");
-  cg.addColorStop(0.6,"rgba(180,80,255,"+(0.15+dep*0.35)+")");
-  cg.addColorStop(1,"rgba(120,40,255,0)");
-  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,dotR,0,6.28);ctx.fill();
+  // ── CENTER BURST — shows power level ──
+  var centerR=8+dep*14;
+  var cg=ctx.createRadialGradient(x,y,0,x,y,centerR);
+  cg.addColorStop(0,"rgba(255,220,255,"+(0.5+dep*0.45)+")");
+  cg.addColorStop(0.4,"rgba(200,100,255,"+(0.25+dep*0.35)+")");
+  cg.addColorStop(1,"rgba(150,50,255,0)");
+  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,centerR,0,6.28);ctx.fill();
+
+  // ── FABRIC RIPPLE LINES — 4 lines radiating out showing spacetime distortion ──
+  if(dep>0.2){
+    ctx.strokeStyle="rgba(180,100,255,"+(dep*0.2)+")";
+    ctx.lineWidth=0.5;
+    for(var ri2=0;ri2<4;ri2++){
+      var ra=ri2*1.571+well.holdTime*0.0005;
+      var rl=outerR*(0.6+dep*0.5);
+      ctx.beginPath();ctx.moveTo(x+Math.cos(ra)*centerR,y+Math.sin(ra)*centerR);
+      ctx.lineTo(x+Math.cos(ra)*rl,y+Math.sin(ra)*rl);ctx.stroke();
+    }
+  }
 }
 
-var PTYPES=[{name:"rocky",bands:0,hasRing:false,hasCraters:true,hasAtmo:false,atmoC:null,surfTint:[0.9,0.85,0.8]},{name:"terr",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[100,180,255],surfTint:[0.7,0.8,1.0]},{name:"gas",bands:3,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[255,200,150],surfTint:[1.0,0.9,0.7]},{name:"ringed",bands:2,hasRing:true,hasCraters:false,hasAtmo:false,atmoC:null,surfTint:[0.85,0.9,1.0]},{name:"ice",bands:0,hasRing:false,hasCraters:false,hasAtmo:true,atmoC:[150,220,255],surfTint:[0.8,0.95,1.0]}];
+// 8 planet archetypes — each with unique visual identity
+var PTYPES=[
+  // 0: rocky — dark grey/brown, heavy craters, no atmosphere
+  {name:"rocky",  ring:false, atmo:null,
+   base:[90,75,65], dark:[40,30,25], hi:[160,140,120],
+   craters:true, bands:0, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 1: terrestrial — blue-green oceans, patchy clouds, green land
+  {name:"terr",   ring:false, atmo:[120,180,255],
+   base:[50,110,200], dark:[20,50,100], hi:[180,220,255],
+   craters:false, bands:0, cloudSwirl:true, alien:false, iceCapWhite:true, rare:false},
+  // 2: gas giant — Jupiter style, tan/orange bands
+  {name:"gas",    ring:false, atmo:[255,200,130],
+   base:[220,175,110], dark:[160,100,50], hi:[255,230,180],
+   craters:false, bands:5, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 3: ringed — Saturn style, pale yellow, prominent rings
+  {name:"ringed", ring:true, atmo:null,
+   base:[220,210,160], dark:[150,130,80], hi:[255,248,210],
+   craters:false, bands:3, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 4: ice — pale blue-white, frozen surface, thin atmo
+  {name:"ice",    ring:false, atmo:[180,230,255],
+   base:[190,220,245], dark:[100,150,200], hi:[240,250,255],
+   craters:true, bands:0, cloudSwirl:false, alien:false, iceCapWhite:true, rare:false},
+  // 5: lava — deep red-orange, glowing cracks, volcanic
+  {name:"lava",   ring:false, atmo:[255,80,30],
+   base:[180,40,10], dark:[80,10,5], hi:[255,180,60],
+   craters:false, bands:0, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 6: earth-like (rare) — blue oceans, green continents, white clouds
+  {name:"earth",  ring:false, atmo:[140,200,255],
+   base:[40,100,200], dark:[15,60,30], hi:[200,230,255],
+   craters:false, bands:0, cloudSwirl:true, alien:false, iceCapWhite:true, rare:true},
+  // 7: alien (rare) — deep purple/teal, glowing patches, eerie
+  {name:"alien",  ring:false, atmo:[80,200,180],
+   base:[80,20,120], dark:[30,5,60], hi:[160,80,255],
+   craters:false, bands:2, cloudSwirl:true, alien:true, iceCapWhite:false, rare:true},
+];
+
+function getRandPType(){
+  // rare types (earth, alien) have 5% chance each
+  var r=Math.random();
+  if(r<0.05)return 6; // earth
+  if(r<0.10)return 7; // alien
+  return Math.floor(Math.random()*5); // common types 0-4
+}
 
 /* === LAUNCHER === */
-var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0};
+var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0,draggingHandle:false};
 var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=1.0;
 var PLATFORM_R=22; // full circle platform radius
 function queueNext(){
@@ -798,7 +928,7 @@ function queueNext(){
   // cooldown based on how many extra orbs beyond 3 are on the board
   // 3 orbs = 2s (fast), each extra orb adds 2s, cap at 20s
   var extra=Math.max(0,liveOrbCount()-3);
-  var cd=Math.min(20000,2000+extra*2000);
+  var cd=Math.min(40000,4000+extra*4000); // doubled — keeps game chill
   launcher.cooldown=cd;launcher.maxCooldown=cd;
   // once ready, player has 10s to launch before auto-fire
   launcher.launchWindow=0;launcher.launchWindowMax=10000;
@@ -811,9 +941,16 @@ function getLaunchParams(){
   var pullAng=Math.atan2(pdy,pdx); // full 360
   var power=pullDist/MAX_PULL;
   var launchAng=pullAng+Math.PI;
-  var speed=0.2+power*(MAX_SPEED-0.2);
+  // scale speed range based on distance from sun — closer = faster ideal orbit
+  var ldx=launcher.x-sun.x,ldy=launcher.y-sun.y;
+  var launchDist=Math.sqrt(ldx*ldx+ldy*ldy);
+  var idealV=orbV(launcher.nextR||10,Math.max(launchDist,sun.r+20));
+  // min speed = 30% of ideal, max = 180% of ideal — full pull overshoots a bit
+  var minSpd=idealV*0.3;
+  var maxSpd=idealV*1.8;
+  var speed=minSpd+power*(maxSpd-minSpd);
   return{pullDist:pullDist,pullAng:pullAng,launchAng:launchAng,power:power,speed:speed,
-    orbX:launcher.x+Math.cos(pullAng)*pullDist,orbY:launcher.y+Math.sin(pullAng)*pullDist, // from center
+    orbX:launcher.x+Math.cos(pullAng)*pullDist,orbY:launcher.y+Math.sin(pullAng)*pullDist,
     vx:Math.cos(launchAng)*speed,vy:Math.sin(launchAng)*speed};
 }
 
@@ -952,12 +1089,38 @@ function drawLauncher(t){
 
   // ── PREVIEW PLANET (at pull position or platform center) ──
   var pc=stabCol(0),pt=PTYPES[launcher.nextPT];
-  var tintC=[pc[0]*pt.surfTint[0],pc[1]*pt.surfTint[1],pc[2]*pt.surfTint[2]];
+  var tintC=pt.base||[150,150,150];var hiC=pt.hi||[220,220,220];
   var mg=ctx.createRadialGradient(previewX-pr*0.2,previewY-pr*0.2,0,previewX,previewY,pr);
-  mg.addColorStop(0,rgba(l3(tintC,[255,255,240],0.2),0.9));mg.addColorStop(0.4,rgba(tintC,0.85));mg.addColorStop(1,rgba([tintC[0]*0.2,tintC[1]*0.2,tintC[2]*0.2],0.9));
+  mg.addColorStop(0,'rgba('+hiC[0]+','+hiC[1]+','+hiC[2]+',0.9)');mg.addColorStop(0.5,'rgba('+tintC[0]+','+tintC[1]+','+tintC[2]+',0.85)');mg.addColorStop(1,'rgba('+~~(tintC[0]*0.3)+','+~~(tintC[1]*0.3)+','+~~(tintC[2]*0.3)+',0.9)');
   ctx.fillStyle=mg;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.fill();
-  ctx.strokeStyle=rgba(tintC,0.35);ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.stroke();
-  if(pt.hasRing){ctx.save();ctx.translate(previewX,previewY);ctx.scale(1,0.2);ctx.strokeStyle=rgba(tintC,0.2);ctx.lineWidth=pr*0.1;ctx.beginPath();ctx.arc(0,0,pr*1.7,0,6.28);ctx.stroke();ctx.restore();}
+  ctx.strokeStyle='rgba('+hiC[0]+','+hiC[1]+','+hiC[2]+',0.35)';ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.stroke();
+  if(pt.ring){ctx.save();ctx.translate(previewX,previewY);ctx.scale(1,0.2);ctx.strokeStyle='rgba('+tintC[0]+','+tintC[1]+','+tintC[2]+',0.25)';ctx.lineWidth=pr*0.1;ctx.beginPath();ctx.arc(0,0,pr*1.7,0,6.28);ctx.stroke();ctx.restore();}
+
+  // ── VERTICAL TRACK + HANDLE (right side) ──
+  var trackX=W-22;
+  var trackTop=sun.y+sun.r+50;
+  var trackBot=H-30;
+  var handleY=launcher.y;
+  // track line
+  ctx.strokeStyle="rgba(180,220,255,0.08)";ctx.lineWidth=1;
+  ctx.setLineDash([3,6]);
+  ctx.beginPath();ctx.moveTo(trackX,trackTop);ctx.lineTo(trackX,trackBot);ctx.stroke();
+  ctx.setLineDash([]);
+  // connector from platform to handle
+  ctx.strokeStyle="rgba(180,220,255,0.05)";ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(trackX,handleY);ctx.stroke();
+  // handle grip pill
+  var hPulse=0.5+Math.sin(time*0.002)*0.2;
+  ctx.fillStyle="rgba(180,220,255,"+(0.12+hPulse*0.05)+")";
+  ctx.strokeStyle="rgba(180,220,255,"+(0.28+hPulse*0.1)+")";
+  ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(trackX-10,handleY-13,20,26,6);ctx.fill();ctx.stroke();
+  // grip lines
+  ctx.strokeStyle="rgba(180,220,255,0.3)";ctx.lineWidth=0.8;
+  for(var gi=0;gi<3;gi++){
+    var gy=handleY-4+gi*4;
+    ctx.beginPath();ctx.moveTo(trackX-5,gy);ctx.lineTo(trackX+5,gy);ctx.stroke();
+  }
 }
 
 function autoLaunch(){
@@ -992,6 +1155,8 @@ function launchPlanet(){
 
 /* === ORBS (same as v23-25) === */
 var orbs=[];var TRAIL_LEN=350;
+var _frameN=0; // frame counter for caching
+var _frameN=0; // frame counter for throttling
 function initOrbs(){
   orbs=[];
   var sa=Math.min(W,H);
@@ -1002,44 +1167,377 @@ function initOrbs(){
     orbs.push(makeOrb(sun.x+Math.cos(ang)*c.d,sun.y+Math.sin(ang)*c.d,-Math.sin(ang)*v,Math.cos(ang)*v,c.r,false,c.pt));
   }
 }
-function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:(Math.random()-0.5)*0.0002,glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,ptype:PTYPES[pt],craterSeeds:im?[]:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,idleTime:Math.random()*3000,suctioning:false,suctionT:0};}
+function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:(Math.random()-0.5)*0.0002,glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,ptype:PTYPES[pt],craterSeeds:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,idleTime:Math.random()*3000,suctioning:false,suctionT:0,_leaderCache:null,_leaderFrame:-99};}
 function respawnOrb(o){var sa=Math.min(W,H),d=sa*(0.1+Math.random()*0.3)+35,ang=Math.random()*6.28,v=orbV(o.baseR,d);o.x=sun.x+Math.cos(ang)*d;o.y=sun.y+Math.sin(ang)*d;o.vx=-Math.sin(ang)*v;o.vy=Math.cos(ang)*v;o.dead=false;o.respawnTimer=0;o.glow=0.5;o.trail=[];o.instability=0;o.suctioning=false;o.suctionT=0;o.r=o.baseR;}
-function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);if(dd>1){var f=GM/(dd*dd);if(f>0.2)f=0.2;o.vx+=dx/dd*f*dt;o.vy+=dy/dd*f*dt;}// start suction when edge touches sun surface
-if(!o.suctioning&&dd<sun.r+o.baseR){
+function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);// 4 sub-steps for accurate orbital integration (no force cap)
+var subDt=dt/4;
+for(var _s=0;_s<4;_s++){
+  var _dx=sun.x-o.x,_dy=sun.y-o.y,_dd=Math.sqrt(_dx*_dx+_dy*_dy);
+  if(_dd<sun.r*0.5)break;
+  var _f=GM/(_dd*_dd); // no cap — real Kepler
+  o.vx+=_dx/_dd*_f*subDt;o.vy+=_dy/_dd*_f*subDt;
+  o.x+=o.vx*subDt*TS;o.y+=o.vy*subDt*TS;
+}
+// re-calc dx/dy/dd AFTER sub-steps — old values are stale
+var dx=sun.x-o.x,dy=sun.y-o.y;
+var dd=Math.sqrt(dx*dx+dy*dy);
+var _radV=dd>1?(o.vx*(-dx/dd)+o.vy*(-dy/dd)):1;
+var _sunCollide=sun.r*0.72;
+// trigger suction if falling in, OR if already inside sun (escaped sub-step guard)
+if(!o.suctioning&&(dd<_sunCollide+o.baseR*0.6&&_radV>0.02||dd<sun.r*0.6)){
   o.suctioning=true;o.suctionT=0;
   disturb(sun.x,sun.y,1.5);
   try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
 }
 if(o.suctioning){
-  o.suctionT+=dt/320; // ~320ms total
+  o.suctionT+=dt/380;
   var st=o.suctionT;
-  // lerp position directly toward sun center — no velocity overshoot
-  var pullStr=0.08+st*0.18; // gentle at start, stronger at end
-  o.x+=(sun.x-o.x)*pullStr;
-  o.y+=(sun.y-o.y)*pullStr;
-  o.vx*=0.85;o.vy*=0.85; // kill existing velocity so it doesn't fly past
-  o.r=o.baseR*Math.max(0,1-st*st); // shrink
-  if(o.suctionT>=1||Math.sqrt((o.x-sun.x)**2+(o.y-sun.y)**2)<2){
+  // simple direct lerp toward sun center — proven working approach
+  o.x+=(sun.x-o.x)*0.12;
+  o.y+=(sun.y-o.y)*0.12;
+  o.vx*=0.85;o.vy*=0.85;
+  o.r=o.baseR*Math.max(0,1-st*st);
+  // force complete at 1.0 regardless of position
+  if(o.suctionT>=1){
+    o.x=sun.x;o.y=sun.y;
     o.dead=true;o.respawnTimer=0;
-    orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:orbsEaten*5,score:score});
-    // absorb orb mass — sun grows
-    var massGain=Math.max(0.3,o.baseR/30); // bigger orbs add more mass
+    orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:10,score:score});
+    var massGain=Math.max(0.3,o.baseR/30);
     if(!chillMode){
       sun.mass=Math.min(sun.maxMass,sun.mass+massGain);
       sun.r=SUN_BASE_R+sun.mass*0.8;
       if(sun.mass>=sun.maxMass&&!blackHole.active&&!blackHole.done)triggerBlackHole();
     }
-    var eatPenalty=orbsEaten*5;
-    score-=eatPenalty;scorePenalty=1;
-    penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:eatPenalty});
+    score-=10;scorePenalty=1;
+    penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:10});
     disturb(sun.x,sun.y,3.0);
     addRing(sun.x,sun.y,1.5);
+    sun.glow=(sun.glow||0)+0.4;
     return;
   }
   return;
-}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;var bx=o.x-W/2,by=o.y-H/2,bd=Math.sqrt(bx*bx+by*by),mD=Math.max(W,H)*0.65;if(bd>mD){var ex=(bd-mD)/mD;o.vx-=bx/bd*ex*ex*0.01*dt;o.vy-=by/bd*ex*ex*0.01*dt;var dr=1-ex*0.003*dt;if(dr<0.90)dr=0.90;o.vx*=dr;o.vy*=dr;}if(spd>6){o.vx=o.vx/spd*6;o.vy=o.vy/spd*6;}o.x+=o.vx*dt*TS;o.y+=o.vy*dt*TS;o.glow*=0.97;o.idleTime+=dt;if(o.idleTime>3000){var iw=Math.sin(o.idleTime*0.0015)*0.035;o.squishX=iw;o.squishY=-iw*0.5;}o.squishVX+=(-o.squishX)*0.08;o.squishVY+=(-o.squishY)*0.08;o.squishVX*=0.82;o.squishVY*=0.82;o.squishX+=o.squishVX;o.squishY+=o.squishVY;o.trail.push({x:o.x,y:o.y});if(o.trail.length>TRAIL_LEN)o.trail.shift();if(spd>0.05)disturb(o.x,o.y,spd*0.04);}
-function drawTrail(o){if(o.dead||o.trail.length<4)return;var c=stabCol(o.instability),len=o.trail.length;for(var i=1;i<len;i++){var t=i/len,a=t*t*t*(o.isMoon?0.3:0.5);ctx.strokeStyle=rgba(c,a);ctx.lineWidth=o.isMoon?0.8:1.5;ctx.beginPath();ctx.moveTo(o.trail[i-1].x,o.trail[i-1].y);ctx.lineTo(o.trail[i].x,o.trail[i].y);ctx.stroke();}}
-function drawOrb(o){if(o.dead)return;var effR=o.suctioning?o.r:o.baseR;var rx=effR*(1+o.squishX*0.2),ry=effR*(1+o.squishY*0.2);if(rx<0.5||ry<0.5)return;var sc=o.suctioning?stabCol(1.5):stabCol(o.instability),g=o.glow+(o.suctioning?0.5:0),r=Math.max(rx,ry),pt=o.ptype;var baseC=[sc[0]*pt.surfTint[0],sc[1]*pt.surfTint[1],sc[2]*pt.surfTint[2]];var sdx=sun.x-o.x,sdy=sun.y-o.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);var snx=sd>0?sdx/sd:0,sny=sd>0?sdy/sd:0;var li=Math.min(1,130/(sd*0.22+35)),lx=snx*r*0.35,ly=sny*r*0.35;if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,Math.PI,2*Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,Math.PI,2*Math.PI);ctx.stroke();ctx.restore();}ctx.save();ctx.translate(o.x,o.y);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();ctx.fillStyle=rgba([baseC[0]*0.2,baseC[1]*0.2,baseC[2]*0.2],1);ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();var main=ctx.createRadialGradient(lx,ly,0,lx*0.3,ly*0.3,r*1.4);main.addColorStop(0,rgba(l3(baseC,[255,255,240],0.25*li),0.92));main.addColorStop(0.25,rgba(baseC,0.88));main.addColorStop(0.55,rgba([baseC[0]*0.45,baseC[1]*0.45,baseC[2]*0.45],0.92));main.addColorStop(0.85,rgba([baseC[0]*0.1,baseC[1]*0.1,baseC[2]*0.1],0.96));main.addColorStop(1,rgba([6,6,12],0.98));ctx.fillStyle=main;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.bands>0){ctx.save();ctx.rotate(o.angle*0.3);for(var b=0;b<pt.bands;b++){var by2=(b/(pt.bands-0.5)-0.5)*r*1.4;var bh=r*0.18+Math.sin(o.angle+b*2)*r*0.04;ctx.fillStyle=rgba(l3(baseC,[255,255,255],0.15+b*0.08),0.12*li);ctx.fillRect(-rx,by2-bh/2,rx*2,bh);}ctx.restore();}if(pt.hasCraters&&o.craterSeeds){for(var c2=0;c2<o.craterSeeds.length;c2++){var ca=o.craterSeeds[c2],cr=r*0.12+c2*r*0.05;var cx2=Math.cos(ca+o.angle*0.1)*r*0.35,cy2=Math.sin(ca+o.angle*0.1)*r*0.3;ctx.fillStyle=rgba([baseC[0]*0.3,baseC[1]*0.3,baseC[2]*0.3],0.2*li);ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();}}var hl=ctx.createRadialGradient(lx*0.8,ly*0.8,0,lx*0.5,ly*0.5,r*0.55);hl.addColorStop(0,rgba([255,255,250],0.14*li+g*0.07));hl.addColorStop(0.3,rgba([255,250,240],0.05*li));hl.addColorStop(1,"rgba(255,245,230,0)");ctx.fillStyle=hl;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();if(pt.hasAtmo&&pt.atmoC){var ag=ctx.createRadialGradient(0,0,r*0.85,0,0,r*1.05);ag.addColorStop(0,rgba(pt.atmoC,0));ag.addColorStop(0.5,rgba(pt.atmoC,0.06*li));ag.addColorStop(1,rgba(pt.atmoC,0.02));ctx.fillStyle=ag;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();}var rimX=-snx*r*0.55,rimY=-sny*r*0.55;var rim=ctx.createRadialGradient(rimX,rimY,r*0.55,rimX,rimY,r*1.15);rim.addColorStop(0,rgba(baseC,0.07*li));rim.addColorStop(1,rgba(baseC,0));ctx.fillStyle=rim;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();ctx.restore();var la=Math.atan2(sny,snx);ctx.strokeStyle=rgba(l3(baseC,[255,240,220],0.2*li),0.3+g*0.15);ctx.lineWidth=0.9;ctx.beginPath();ctx.arc(o.x,o.y,rx,la-1.57,la+1.57);ctx.stroke();ctx.strokeStyle=rgba(baseC,0.08+g*0.04);ctx.lineWidth=0.5;ctx.beginPath();ctx.arc(o.x,o.y,rx,la+1.57,la+4.71);ctx.stroke();if(pt.hasAtmo&&pt.atmoC){ctx.strokeStyle=rgba(pt.atmoC,0.08*li);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,rx+1.5,la-1.2,la+1.2);ctx.stroke();}if(pt.hasRing){ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt);ctx.strokeStyle=rgba(baseC,0.2+g*0.1);ctx.lineWidth=r*0.12;ctx.beginPath();ctx.arc(0,0,r*1.7,0,Math.PI);ctx.stroke();ctx.strokeStyle=rgba(l3(baseC,[255,255,255],0.3),0.12);ctx.lineWidth=r*0.06;ctx.beginPath();ctx.arc(0,0,r*1.95,0,Math.PI);ctx.stroke();ctx.restore();}}
+}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;// circular soft boundary — tight push-back band near edge, invisible otherwise
+var bx=o.x-W/2,by=o.y-H/2,bd=Math.sqrt(bx*bx+by*by);
+var mD=Math.max(W,H)*0.9; // well beyond screen
+var pushZone=mD*0.08; // push starts 8% before boundary
+var distToEdge=mD-bd;
+if(distToEdge<pushZone&&bd>1){
+  // linear force that grows as you approach the edge
+  var pushStr=(1-(distToEdge/pushZone))*0.006*dt;
+  o.vx-=bx/bd*pushStr;o.vy-=by/bd*pushStr;
+}
+// hard speed cap — prevents gravity-sling fling-outs
+if(spd>3){o.vx=o.vx/spd*3;o.vy=o.vy/spd*3;}o.glow*=0.97;o.idleTime+=dt;if(o.idleTime>3000){var iw=Math.sin(o.idleTime*0.0015)*0.035;o.squishX=iw;o.squishY=-iw*0.5;}o.squishVX+=(-o.squishX)*0.08;o.squishVY+=(-o.squishY)*0.08;o.squishVX*=0.82;o.squishVY*=0.82;o.squishX+=o.squishVX;o.squishY+=o.squishVY;// compute radial velocity (+ = moving away from sun, - = toward)
+var _tsx=sun.x-o.x,_tsy=sun.y-o.y,_tsd=Math.sqrt(_tsx*_tsx+_tsy*_tsy);
+var _radVel=(_tsd>1)?(o.vx*(-_tsx/_tsd)+o.vy*(-_tsy/_tsd)):0; // negative = toward sun
+var _tCol; // trail color based on radial velocity and orbit quality
+var _orbColor=o.instability; // still track instability for other uses
+if(_radVel<-0.08){_tCol=[220,60,40];} // toward sun = red
+else if(_radVel>0.08){_tCol=[220,200,60];} // away from sun = yellow
+else{_tCol=[60,160,255];} // tangential = blue (good orbit)
+// blend toward red if very unstable regardless
+if(o.instability>0.8){_tCol=l3(_tCol,[220,50,30],Math.min(1,(o.instability-0.8)*2));}
+o.trail.push({x:o.x,y:o.y,c:_tCol});if(o.trail.length>TRAIL_LEN)o.trail.shift();if(spd>0.05)disturb(o.x,o.y,spd*0.04);}
+
+function drawLeaderLine(o){
+  if(o.dead||o.suctioning)return;
+  var tsx=sun.x-o.x,tsy=sun.y-o.y,tsd2=Math.sqrt(tsx*tsx+tsy*tsy);
+  var radVel=(tsd2>1)?(o.vx*(-tsx/tsd2)+o.vy*(-tsy/tsd2)):0;
+  var state=radVel<-0.06?'red':radVel>0.06?'yellow':'blue';
+  var cfgs={
+    blue:  {col:[80,170,255], steps:120,dashOn:6,dashOff:4,lw:1.0,pulse:false},
+    yellow:{col:[230,210,60], steps:55, dashOn:5,dashOff:5,lw:0.9,pulse:false},
+    red:   {col:[230,70,50],  steps:18, dashOn:3,dashOff:4,lw:0.8,pulse:true}
+  };
+  var cfg=cfgs[state];
+  if(!o._leaderPts||_frameN%8===0||o._leaderState!==state){
+    var x=o.x,y=o.y,vx=o.vx,vy=o.vy;
+    var pts=[{x:x,y:y}];
+    for(var i=0;i<cfg.steps;i++){
+      for(var s=0;s<2;s++){
+        var dx2=sun.x-x,dy2=sun.y-y,d2=Math.sqrt(dx2*dx2+dy2*dy2);
+        if(d2<sun.r+2){i=cfg.steps;break;}
+        var f2=GM/(d2*d2);
+        vx+=dx2/d2*f2*16.67;vy+=dy2/d2*f2*16.67;
+        x+=vx*16.67*TS;y+=vy*16.67*TS;
+      }
+      pts.push({x:x,y:y});
+    }
+    o._leaderPts=pts; o._leaderState=state;
+  }
+  var pts=o._leaderPts;
+  if(pts.length<2)return;
+  var pulseMult=cfg.pulse?(0.5+Math.sin(Date.now()*0.008)*0.5):1;
+  var c=cfg.col;
+  ctx.save();
+  // clip out other orbs
+  ctx.beginPath();ctx.rect(0,0,W,H);
+  for(var oi=0;oi<orbs.length;oi++){
+    var oo=orbs[oi];if(oo===o||oo.dead)continue;
+    ctx.moveTo(oo.x+oo.baseR*1.4,oo.y);
+    ctx.arc(oo.x,oo.y,oo.baseR*1.4,0,6.28,true);
+  }
+  ctx.clip("evenodd");
+
+  // draw as ONE continuous path with a gradient-like fade using a single stroke
+  // to avoid per-segment dots, use a linear fade via globalAlpha on the whole path
+  // split into 3 opacity zones: near (bright), mid, far (faint)
+  var zones=[
+    {from:0,   to:0.35, alpha:0.65*pulseMult},
+    {from:0.35,to:0.65, alpha:0.35*pulseMult},
+    {from:0.65,to:1.0,  alpha:0.12*pulseMult}
+  ];
+  ctx.lineWidth=cfg.lw;
+  ctx.lineCap="butt";
+  ctx.setLineDash([]);
+  for(var z=0;z<zones.length;z++){
+    var zn=zones[z];
+    var i0=~~(zn.from*(pts.length-1));
+    var i1=~~(zn.to*(pts.length-1));
+    if(i1<=i0)continue;
+    ctx.globalAlpha=zn.alpha*(o.isMoon?0.4:1);
+    ctx.strokeStyle="rgba("+c[0]+","+c[1]+","+c[2]+",1)";
+    ctx.beginPath();
+    ctx.moveTo(pts[i0].x,pts[i0].y);
+    for(var i=i0+1;i<=i1;i++) ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawTrail(o){
+  if(o.dead||o.trail.length<4)return;
+  var tr=o.trail,len=tr.length;
+
+  // Group consecutive same-color points into runs, draw each as one smooth path
+  var runs=[],curC=null,runStart=0;
+  for(var i=1;i<len;i++){
+    var c=tr[i].c||[60,160,255];
+    if(!curC||c[0]!==curC[0]||c[1]!==curC[1]||c[2]!==curC[2]){
+      if(curC)runs.push({c:curC,from:runStart,to:i-1});
+      curC=c;runStart=i-1;
+    }
+  }
+  if(curC)runs.push({c:curC,from:runStart,to:len-1});
+
+  ctx.lineCap="round";
+  ctx.lineJoin="round";
+
+  for(var ri=0;ri<runs.length;ri++){
+    var run=runs[ri];
+    var c=run.c;
+    // use mid-run frac for alpha and width
+    var midFrac=(run.from+run.to)*0.5/len;
+    var a=midFrac*midFrac*(o.isMoon?0.5:0.85);
+    if(a<0.01)continue;
+    ctx.strokeStyle="rgba("+~~c[0]+","+~~c[1]+","+~~c[2]+","+a+")";
+    ctx.lineWidth=o.isMoon?0.9:(1.2+midFrac*2.2);
+    ctx.beginPath();
+    // smooth curve through points using quadratic bezier midpoints
+    var p0=tr[run.from];
+    ctx.moveTo(p0.x,p0.y);
+    for(var i=run.from+1;i<=run.to;i++){
+      var p=tr[i];
+      if(i<run.to){
+        var pn=tr[i+1];
+        var mx=(p.x+pn.x)*0.5,my=(p.y+pn.y)*0.5;
+        ctx.quadraticCurveTo(p.x,p.y,mx,my);
+      } else {
+        ctx.lineTo(p.x,p.y);
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.lineCap="butt";
+  ctx.lineJoin="miter";
+}
+function drawOrb(o){
+  if(o.dead)return;
+  var effR=o.suctioning?o.r:o.baseR;
+  var rx=effR*(1+o.squishX*0.2),ry=effR*(1+o.squishY*0.2);
+  if(rx<0.5||ry<0.5)return;
+  var r=Math.max(rx,ry);
+  var pt=o.ptype;
+  var g=o.glow+(o.suctioning?0.5:0);
+
+  // sun-facing direction for lighting
+  var sdx=sun.x-o.x,sdy=sun.y-o.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);
+  var snx=sd>0?sdx/sd:0,sny=sd>0?sdy/sd:0;
+  var li=Math.min(1,110/(sd*0.2+30)); // light intensity
+  var lx=snx*r*0.38,ly=sny*r*0.38;   // light source offset
+
+  var base=pt.base,dark=pt.dark,hi=pt.hi;
+
+  // ── BACK RINGS (behind planet) ──
+  if(pt.ring){
+    ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt||0.22);
+    ctx.strokeStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.22)";ctx.lineWidth=r*0.14;
+    ctx.beginPath();ctx.arc(0,0,r*1.75,Math.PI,2*Math.PI);ctx.stroke();
+    ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.1)";ctx.lineWidth=r*0.07;
+    ctx.beginPath();ctx.arc(0,0,r*2.05,Math.PI,2*Math.PI);ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();ctx.translate(o.x,o.y);
+  ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();
+
+  // ── BASE SPHERE GRADIENT ──
+  var bg=ctx.createRadialGradient(lx*0.8,ly*0.8,0,0,0,r*1.3);
+  bg.addColorStop(0,"rgba("+hi[0]+","+hi[1]+","+hi[2]+","+(0.9+li*0.1)+")");
+  bg.addColorStop(0.3,"rgba("+base[0]+","+base[1]+","+base[2]+",0.95)");
+  bg.addColorStop(0.7,"rgba("+~~(base[0]*0.55)+","+~~(base[1]*0.55)+","+~~(base[2]*0.55)+",0.95)");
+  bg.addColorStop(1,"rgba("+dark[0]+","+dark[1]+","+dark[2]+",0.98)");
+  ctx.fillStyle=bg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+
+  // ── TYPE-SPECIFIC SURFACE DETAILS ──
+  if(pt.name==="rocky"||pt.name==="ice"){
+    // craters with shadow + highlight
+    for(var ci=0;ci<4;ci++){
+      var ca=o.craterSeeds[ci]+o.angle*0.05;
+      var cr=r*(0.08+ci*0.06);
+      var cx2=Math.cos(ca)*r*0.4,cy2=Math.sin(ca)*r*0.35;
+      ctx.fillStyle="rgba("+dark[0]+","+dark[1]+","+dark[2]+",0.35)";
+      ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();
+      ctx.fillStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.12)";
+      ctx.beginPath();ctx.arc(cx2-cr*0.25,cy2-cr*0.25,cr*0.45,0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.bands>0){
+    // horizontal atmospheric bands
+    ctx.save();ctx.rotate(o.angle*0.08);
+    for(var b=0;b<pt.bands;b++){
+      var by2=(b/(pt.bands)-0.5)*r*1.6;
+      var bh=r*(0.13+Math.sin(o.angle*0.3+b)*0.04);
+      var bAlpha=0.18*li*(b%2===0?1:0.6);
+      ctx.fillStyle="rgba("+dark[0]+","+dark[1]+","+dark[2]+","+bAlpha+")";
+      ctx.fillRect(-rx,by2-bh/2,rx*2,bh);
+      ctx.fillStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+","+(bAlpha*0.4)+")";
+      ctx.fillRect(-rx,by2-bh*0.15,rx*2,bh*0.3);
+    }
+    ctx.restore();
+    // great spot for gas giants
+    if(pt.name==="gas"){
+      var gs=ctx.createRadialGradient(r*0.2,r*0.1,0,r*0.2,r*0.1,r*0.28);
+      gs.addColorStop(0,"rgba(180,80,30,0.25)");gs.addColorStop(1,"rgba(180,80,30,0)");
+      ctx.fillStyle=gs;ctx.beginPath();ctx.arc(r*0.2,r*0.1,r*0.28,0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.cloudSwirl){
+    // wispy cloud patches
+    for(var c=0;c<3;c++){
+      var cla=o.craterSeeds[c]*2.1+o.angle*0.04;
+      var clx=Math.cos(cla)*r*0.25,cly=Math.sin(cla)*r*0.2;
+      var clg=ctx.createRadialGradient(clx,cly,0,clx,cly,r*(0.22+c*0.06));
+      clg.addColorStop(0,"rgba(255,255,255,"+(0.18*li)+")");
+      clg.addColorStop(1,"rgba(255,255,255,0)");
+      ctx.fillStyle=clg;ctx.beginPath();ctx.arc(clx,cly,r*(0.22+c*0.06),0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.alien){
+    // glowing patches
+    for(var a=0;a<3;a++){
+      var ala=o.craterSeeds[a]*2.5+o.angle*0.06;
+      var alx=Math.cos(ala)*r*0.3,aly=Math.sin(ala)*r*0.3;
+      var alg=ctx.createRadialGradient(alx,aly,0,alx,aly,r*0.25);
+      alg.addColorStop(0,"rgba(100,255,200,0.22)");alg.addColorStop(1,"rgba(80,200,180,0)");
+      ctx.fillStyle=alg;ctx.beginPath();ctx.arc(alx,aly,r*0.25,0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.name==="lava"){
+    // glowing crack network
+    ctx.save();ctx.rotate(o.angle*0.1);
+    for(var v=0;v<4;v++){
+      var va=v*1.57;var vg=ctx.createLinearGradient(
+        Math.cos(va)*r*0.1,Math.sin(va)*r*0.1,
+        Math.cos(va)*r*0.7,Math.sin(va)*r*0.7);
+      vg.addColorStop(0,"rgba(255,180,30,0.35)");vg.addColorStop(1,"rgba(255,80,20,0)");
+      ctx.strokeStyle="rgba(255,160,20,0.2)";ctx.lineWidth=r*0.04;
+      ctx.beginPath();ctx.moveTo(Math.cos(va)*r*0.1,Math.sin(va)*r*0.1);
+      ctx.lineTo(Math.cos(va+0.3)*r*0.7,Math.sin(va+0.3)*r*0.7);ctx.stroke();
+    }
+    ctx.restore();
+    // inner glow
+    var lg2=ctx.createRadialGradient(0,0,0,0,0,r*0.6);
+    lg2.addColorStop(0,"rgba(255,200,50,0.15)");lg2.addColorStop(1,"rgba(255,100,20,0)");
+    ctx.fillStyle=lg2;ctx.beginPath();ctx.arc(0,0,r*0.6,0,6.28);ctx.fill();
+  }
+
+  if(pt.iceCapWhite){
+    // polar ice caps top and bottom
+    var icg=ctx.createRadialGradient(0,-r*0.72,0,0,-r*0.72,r*0.45);
+    icg.addColorStop(0,"rgba(240,250,255,0.55)");icg.addColorStop(1,"rgba(220,240,255,0)");
+    ctx.fillStyle=icg;ctx.beginPath();ctx.arc(0,-r*0.72,r*0.45,0,6.28);ctx.fill();
+  }
+
+  if(pt.name==="earth"){
+    // green landmass blobs
+    for(var e=0;e<3;e++){
+      var ela=o.craterSeeds[e]*2.2+o.angle*0.03;
+      var elx=Math.cos(ela)*r*0.2,ely=Math.sin(ela)*r*0.18;
+      var elg=ctx.createRadialGradient(elx,ely,0,elx,ely,r*(0.18+e*0.04));
+      elg.addColorStop(0,"rgba(60,140,50,0.45)");elg.addColorStop(1,"rgba(40,100,30,0)");
+      ctx.fillStyle=elg;ctx.beginPath();ctx.arc(elx,ely,r*(0.18+e*0.04),0,6.28);ctx.fill();
+    }
+  }
+
+  // ── SPECULAR HIGHLIGHT ──
+  var hlg=ctx.createRadialGradient(lx*0.7,ly*0.7,0,lx*0.4,ly*0.4,r*0.55);
+  hlg.addColorStop(0,"rgba(255,255,255,"+(0.18*li+g*0.08)+")");
+  hlg.addColorStop(0.4,"rgba(255,255,255,"+(0.05*li)+")");
+  hlg.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle=hlg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+
+  // ── TERMINATOR (dark side shadow) ──
+  var sh=ctx.createRadialGradient(-snx*r*0.25,-sny*r*0.25,r*0.35,-snx*r*0.1,-sny*r*0.1,r*1.05);
+  sh.addColorStop(0,"rgba(0,0,0,0)");
+  sh.addColorStop(0.5,"rgba(0,0,0,0.12)");
+  sh.addColorStop(0.8,"rgba(0,0,5,0.5)");
+  sh.addColorStop(1,"rgba(0,0,10,0.88)"); // deeper dark side
+  ctx.fillStyle=sh;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+  // limb darkening — edge of sphere always darker (realistic atmosphere effect)
+  var ld=ctx.createRadialGradient(0,0,r*0.65,0,0,r);
+  ld.addColorStop(0,"rgba(0,0,0,0)");
+  ld.addColorStop(1,"rgba(0,0,8,0.45)");
+  ctx.fillStyle=ld;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+
+  ctx.restore();
+
+  // ── ATMOSPHERE (outside clip) ──
+  if(pt.atmo){
+    var atg=ctx.createRadialGradient(o.x,o.y,r*0.88,o.x,o.y,r*1.18);
+    atg.addColorStop(0,"rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+",0)");
+    atg.addColorStop(0.5,"rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+","+(0.09*li)+")");
+    atg.addColorStop(1,"rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+",0)");
+    ctx.fillStyle=atg;ctx.beginPath();ctx.arc(o.x,o.y,r*1.18,0,6.28);ctx.fill();
+    // atmospheric rim light on sun side
+    var la=Math.atan2(sny,snx);
+    ctx.strokeStyle="rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+","+(0.12*li)+")";
+    ctx.lineWidth=r*0.06+1;
+    ctx.beginPath();ctx.arc(o.x,o.y,r*1.02,la-1.3,la+1.3);ctx.stroke();
+  }
+
+  // ── FRONT RINGS (in front of planet) ──
+  if(pt.ring){
+    ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt||0.22);
+    ctx.strokeStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.28)";ctx.lineWidth=r*0.14;
+    ctx.beginPath();ctx.arc(0,0,r*1.75,0,Math.PI);ctx.stroke();
+    ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.12)";ctx.lineWidth=r*0.07;
+    ctx.beginPath();ctx.arc(0,0,r*2.05,0,Math.PI);ctx.stroke();
+    ctx.restore();
+  }
+
+  // glow ring if recently hit
+  if(g>0.05){
+    ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+","+g*0.4+")";
+    ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,r+2,0,6.28);ctx.stroke();
+  }
+}
 
 function applyPuck(){
   var dep=well.depth; // 0..1, works even when not active (decay phase)
@@ -1125,14 +1623,31 @@ var rings=[];function addRing(x,y,s){rings.push({x:x,y:y,rad:0,mx:55+s*75,life:1
 var dragN=0;
 function gXY(e){var t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY}}
 function inLZ(p){return Math.sqrt((p.x-launcher.x)**2+(p.y-launcher.y)**2)<LAUNCH_ZONE_R&&launcher.cooldown<=0;}
+function inHandle(p){
+  var trackX=W-22,handleY=launcher.y;
+  return p.x>trackX-18&&p.x<trackX+18&&p.y>handleY-20&&p.y<handleY+20;
+}
 function inMenuZone(p){return p.x>=W-56&&p.y>=48&&p.y<=82;}
-function onD(e){e.preventDefault();var p=gXY(e);if(inMenuZone(p)){showMenu();return;}if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}}
-function onM(e){e.preventDefault();var p=gXY(e);if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!well.active)return;well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;well.vx=well.x-well.px;well.vy=well.y-well.py;var spd=Math.sqrt(well.vx**2+well.vy**2);disturb(well.x,well.y,0.2+spd*0.01);well.trail.push({x:well.x,y:well.y,age:0,dep:well.depth});if(well.trail.length>40)well.trail.shift();dragN++;}
-function onU(e){e.preventDefault();if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(well.active){disturb(well.x,well.y,0.8);}well.active=false;well.trail=[];dragN=0;}
+function onD(e){e.preventDefault();var p=gXY(e);
+  if(inMenuZone(p)){showMenu();return;}
+  if(inHandle(p)){launcher.draggingHandle=true;return;}
+  if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}
+  else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}
+}
+function onM(e){e.preventDefault();var p=gXY(e);
+  if(launcher.draggingHandle){
+    var trackTop=sun.y+sun.r+50;
+    var trackBot=H-30;
+    launcher.y=Math.max(trackTop,Math.min(trackBot,p.y));
+    launcher.x=W/2; // keep centered horizontally
+    return;
+  }
+  if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!well.active)return;well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;well.vx=well.x-well.px;well.vy=well.y-well.py;var spd=Math.sqrt(well.vx**2+well.vy**2);disturb(well.x,well.y,0.2+spd*0.01);well.trail.push({x:well.x,y:well.y,age:0,dep:well.depth});if(well.trail.length>40)well.trail.shift();dragN++;}
+function onU(e){e.preventDefault();if(launcher.draggingHandle){launcher.draggingHandle=false;return;}if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(well.active){disturb(well.x,well.y,0.8);}well.active=false;well.trail=[];dragN=0;}
 canvas.addEventListener("touchstart",onD,{passive:false});canvas.addEventListener("touchmove",onM,{passive:false});canvas.addEventListener("touchend",onU,{passive:false});
 canvas.addEventListener("mousedown",onD,false);canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);canvas.addEventListener("mouseup",onU,false);
 
-function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0){initStars();initNebula();initGalaxies();}launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
+function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){
@@ -1343,19 +1858,21 @@ function drawScore(t){
     ctx.beginPath();ctx.arc(bIconX,rowAy,ICON_R,0,6.28);ctx.fill();
     ctx.shadowBlur=0;ctx.shadowColor="transparent";
 
-    // red row — same font size, same icon size as blue
+    // red row — right-aligned so icon stacks under blue icon
     if(unstable>0){
       ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
+      // right-align: measure number, then place so its right edge = bIconX - ICON_R - 3
+      var rTxtW=ctx.measureText(String(unstable)).width;
+      var rNumX=bIconX-ICON_R-3-rTxtW; // right edge of number aligns with left edge of icon gap
       ctx.fillStyle="rgba(255,90,50,0.75)";
-      ctx.fillText("−"+unstable,multX,rowBy);
-      var rTxtW=ctx.measureText("−"+unstable).width;
-      var rIconX=multX+rTxtW+ICON_R+3;
+      ctx.fillText(unstable,rNumX,rowBy);
+      // icon at exactly same x as blue icon
       ctx.strokeStyle="rgba(255,80,40,0.6)";ctx.lineWidth=1;
-      ctx.beginPath();ctx.arc(rIconX,rowBy,ICON_R,0,6.28);ctx.stroke();
+      ctx.beginPath();ctx.arc(bIconX,rowBy,ICON_R,0,6.28);ctx.stroke();
       ctx.fillStyle="rgba(255,60,20,0.14)";
-      ctx.beginPath();ctx.arc(rIconX,rowBy,ICON_R,0,6.28);ctx.fill();
+      ctx.beginPath();ctx.arc(bIconX,rowBy,ICON_R,0,6.28);ctx.fill();
       ctx.fillStyle="rgba(255,110,70,0.45)";
-      ctx.beginPath();ctx.arc(rIconX,rowBy,1.5,0,6.28);ctx.fill();
+      ctx.beginPath();ctx.arc(bIconX,rowBy,1.5,0,6.28);ctx.fill();
     }
   }
 
@@ -1421,23 +1938,7 @@ function drawScore(t){
     ctx.beginPath();ctx.arc(mbarX+mbarW+9,row2Y,3,0,6.28);ctx.fill();
   }
 
-  // --- ROW 3: eaten equation (gap below mass bar) ---
-  var row3Y=row2Y+16;
-  ctx.textBaseline="middle";
-  if(orbsEaten>0){
-    var etx=barX+5;
-    ctx.font="11px system-ui,sans-serif";
-    ctx.fillStyle="rgba(255,100,80,0.7)";
-    ctx.fillText("−5",etx,row3Y);etx+=ctx.measureText("−5").width;
-    ctx.fillStyle="rgba(255,255,255,0.25)";
-    ctx.fillText(" × ",etx,row3Y);etx+=ctx.measureText(" × ").width;
-    ctx.fillStyle="rgba(255,255,255,0.7)";
-    ctx.fillText(orbsEaten,etx,row3Y);etx+=ctx.measureText(String(orbsEaten)).width;
-    ctx.fillStyle="rgba(255,255,255,0.25)";
-    ctx.fillText(" = ",etx,row3Y);etx+=ctx.measureText(" = ").width;
-    ctx.fillStyle="rgba(255,80,80,0.85)";
-    ctx.fillText("−"+(orbsEaten*5),etx,row3Y);
-  }
+
 
   ctx.restore();
 }
@@ -1832,7 +2333,9 @@ if(launcher.cooldown>0){
     autoLaunch();
   }
 }
-tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}// black hole trigger flash
+tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}_frameN++;_frameN++;ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);
+
+for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}for(var i=0;i<orbs.length;i++)drawLeaderLine(orbs[i]);// black hole trigger flash
 if(blackHole.flash>0){
   blackHole.flash-=0.06;
   ctx.fillStyle="rgba(255,220,100,"+Math.max(0,blackHole.flash)+")";

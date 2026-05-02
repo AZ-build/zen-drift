@@ -364,7 +364,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
 </div>
 
 <!-- END GAME OVERLAY -->
-<div id="endgame-overlay" style="display:none;position:fixed;inset:0;z-index:25;background:rgba(3,3,8,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,sans-serif;display:none;align-items:center;justify-content:center;">
+<div id="endgame-overlay" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(3,3,8,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,sans-serif;align-items:center;justify-content:center;">
   <div style="text-align:center;max-width:300px;padding:0 24px;width:100%;">
     <div style="font-size:13px;letter-spacing:4px;text-transform:lowercase;color:rgba(255,255,255,0.25);margin-bottom:8px;">game over</div>
     <div id="endgame-score" style="font-size:64px;font-weight:800;color:white;line-height:1;margin-bottom:4px;">0</div>
@@ -426,6 +426,11 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
       </svg>Reset game
     </button>
     <div style="height:1px;background:rgba(255,255,255,0.06);margin:16px 0;"></div>
+    <div style="margin:16px 0 20px;padding:14px 16px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(100,200,255,0.2);border-radius:0 8px 8px 0;">
+      <p style="font-size:13px;color:rgba(255,255,255,0.55);line-height:1.6;margin:0;font-style:italic;">"I was sick and dying and Orbit saved my life."</p>
+      <p style="font-size:11px;color:rgba(255,255,255,0.25);margin:6px 0 0;letter-spacing:0.5px;">— Evan Brammer</p>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:0 0 16px;"></div>
     <div style="font-size:12px;color:rgba(255,255,255,0.2);letter-spacing:3px;text-transform:lowercase;margin-bottom:10px;">coming soon</div>
     <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🔊  Sound</button>
     <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🎨  Themes</button>
@@ -437,6 +442,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
     <div class="how-section">
       <h3>Controls</h3>
       <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. The trajectory line shows where it will go. Use the handle on the right edge to slide the launcher closer or further from the sun — closer means faster orbits. Each planet takes longer to load. You have 10 seconds to launch before it auto-fires toward the sun.</p></div></div>
+      <div class="how-card"><div class="how-icon">🔍</div><div><h4>Zoom</h4><p>Pinch with two fingers to zoom in or out. Zoom out to see planets that have drifted off-screen. Double-tap to reset zoom.</p></div></div>
       <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a channel that planets will follow. A light swipe nudges gently — a long hold can catch a fast-moving planet.</p></div></div>
       <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
       <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Watch the ☀ mass bar in the score panel. When it fills, the sun collapses into a black hole and devours every planet on the map — each one still costs −10. That's game over.</p></div></div>
@@ -501,12 +507,20 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
 <a id="logo-link" href="#" onclick="showMenu();return false;" style="position:fixed;top:0;right:0;width:150px;height:48px;z-index:10;display:block;-webkit-tap-highlight-color:transparent;"></a>
 
 <script>
-"use strict";
 (function(){
-var canvas=document.getElementById("c"),ctx=canvas.getContext("2d"),hint=document.getElementById("hint");
-var W=0,H=0,TS=0.05,GM=4.0;
-function orbV(r,d){return Math.sqrt(GM/(d*TS))*(1+Math.max(0,(14-r)*0.006));}
-function idealSpeed(d){return Math.sqrt(GM/d)*Math.sqrt(1/TS);}
+"use strict";
+var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
+var W=0,H=0,TS=0.05,GM=4.0; // base value
+var zoom=1.0,zoomTarget=1.0,_pinchDist0=0,_pinching=false;
+function getGM(){
+  if(!sun||sun.mass===0)return GM;
+  var mp=sun.mass/sun.maxMass;
+  if(mp<0.38) return GM*(1+mp*0.8);              // 4.0 to 4.8
+  if(mp<0.82){ var p=(mp-0.38)/0.44; return GM*(1.3+p*1.2); } // 4.8 to 8.0 red giant
+  var p=(mp-0.82)/0.18; return GM*(2.5+p*5.5);   // 8.0 to 30.0 neutron star chaos
+}
+function orbV(r,d){return Math.sqrt(getGM()/(d*TS))*(1+Math.max(0,(14-r)*0.006));}
+function idealSpeed(d){return Math.sqrt(getGM()/d)*Math.sqrt(1/TS);}
 var SUN_BASE_R=28;
 var SUN_MAX_MASS=8;
 var sun={x:0,y:0,vx:0,vy:0,r:SUN_BASE_R,homeX:0,homeY:0,mass:0,maxMass:SUN_MAX_MASS};
@@ -521,18 +535,21 @@ function l3(a,b,t){return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])
 function rgba(c,a){return"rgba("+~~c[0]+","+~~c[1]+","+~~c[2]+","+a+")"}
 
 var CELL=28,cols=2,rows=2,wH,wV;
-function initW(){cols=Math.ceil(W/CELL)+4;rows=Math.ceil(H/CELL)+4;wH=new Float32Array(cols*rows);wV=new Float32Array(cols*rows);}
+function initW(){cols=Math.ceil(W*2/CELL)+4;rows=Math.ceil(H*2/CELL)+4;wH=new Float32Array(cols*rows);wV=new Float32Array(cols*rows);}
 function disturb(px,py,str){var cx=~~(px/CELL)+1,cy=~~(py/CELL)+1;for(var dy=-4;dy<=4;dy++)for(var dx=-4;dx<=4;dx++){var gx=cx+dx,gy=cy+dy;if(gx<0||gx>=cols||gy<0||gy>=rows)continue;var d=Math.sqrt(dx*dx+dy*dy);if(d>4)continue;wH[gy*cols+gx]+=str*(1-d/4)*(1-d/4);}}
 function stepW(){for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wV[i]+=((wH[i-1]+wH[i+1]+wH[i-cols]+wH[i+cols])*0.25-wH[i])*0.3;wV[i]*=0.94;}for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wH[i]+=wV[i];if(wH[i]>5)wH[i]=5;if(wH[i]<-5)wH[i]=-5;}for(var x=0;x<cols;x++){wH[x]=0;wV[x]=0;wH[(rows-1)*cols+x]=0;wV[(rows-1)*cols+x]=0;}for(var y=0;y<rows;y++){wH[y*cols]=0;wV[y*cols]=0;wH[y*cols+cols-1]=0;wV[y*cols+cols-1]=0;}}
 function wAt(px,py){var gxf=px/CELL+1,gyf=py/CELL+1,gx=~~gxf,gy=~~gyf;if(gx<0||gx>=cols-1||gy<0||gy>=rows-1)return 0;var fx=gxf-gx,fy=gyf-gy,i=gy*cols+gx;return wH[i]*(1-fx)*(1-fy)+wH[i+1]*fx*(1-fy)+wH[i+cols]*(1-fx)*fy+wH[i+cols+1]*fx*fy;}
-function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?Math.min(8,1+blackHole.t/500):1;var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.depth>0.01){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;if(fd<200){var fs=(600+well.depth*well.depth*8000)/(fd*fd+80);wx+=fdx/fd*fs*well.depth;wy+=fdy/fd*fs*well.depth;}}return{x:wx,y:wy};}
+function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?2.5:1; 
+  var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.depth>0.01){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;if(fd<200){var fs=(600+well.depth*well.depth*8000)/(fd*fd+80);wx+=fdx/fd*fs*well.depth;wy+=fdy/fd*fs*well.depth;}}return{x:wx,y:wy};}
 function drawGrid(t){
   var sp=20; // slightly tighter grid
 
-  // ── HORIZONTAL LINES ──
-  for(var py=-sp;py<H+sp;py+=sp){
+  // ── HORIZONTAL LINES — extended for zoom out ──
+  var gMinX=-Math.round(W*0.6),gMaxX=Math.round(W*1.6);
+  var gMinY=-Math.round(H*0.6),gMaxY=Math.round(H*1.6);
+  for(var py=gMinY;py<gMaxY;py+=sp){
     ctx.beginPath();var s=false,wA=0,totalWarp=0;
-    for(var px=0;px<W;px+=6){
+    for(var px=gMinX;px<gMaxX;px+=6){
       var h=wAt(px,py),g=gWarp(px,py);
       wA=Math.max(wA,Math.abs(h));
       totalWarp+=Math.sqrt(g.x*g.x+g.y*g.y);
@@ -561,9 +578,9 @@ function drawGrid(t){
   }
 
   // ── VERTICAL LINES ──
-  for(var px=-sp;px<W+sp;px+=sp){
+  for(var px=gMinX;px<gMaxX;px+=sp){
     ctx.beginPath();var s=false,wA=0,totalWarp=0;
-    for(var py2=0;py2<H;py2+=6){
+    for(var py2=gMinY;py2<gMaxY;py2+=6){
       var h=wAt(px,py2),g=gWarp(px,py2);
       wA=Math.max(wA,Math.abs(h));
       totalWarp+=Math.sqrt(g.x*g.x+g.y*g.y);
@@ -773,62 +790,34 @@ function triggerBlackHole(){
 
 function drawBlackHole(t){
   var sx=sun.x,sy=sun.y;
-  var phase=Math.min(1,blackHole.t/800);
-  var BHR=sun.r*(0.45+phase*0.2); // small, tight event horizon
+  var phase=Math.min(1,blackHole.t/600); // collapse in 0.6s
 
-  // ── GRAVITATIONAL LENSING HALO ──
-  // Concentric rings that shimmer and rotate — simulating light being
-  // bent around the singularity. Different speeds create the warping illusion.
-  // rings spin fast and violently — closer together, more chaotic
-  var spd=1+phase*4; // rings accelerate as black hole forms
-  var lensRings=[
-    {r:3.2,tilt:0.10,speed:0.0008*spd, lw:2.5,a:0.4, col:[255,220,140]},
-    {r:2.6,tilt:0.14,speed:-0.0012*spd,lw:2.0,a:0.45,col:[255,190,80]},
-    {r:2.1,tilt:0.20,speed:0.0018*spd, lw:1.8,a:0.50,col:[255,160,50]},
-    {r:1.7,tilt:0.26,speed:-0.0025*spd,lw:1.5,a:0.55,col:[255,130,30]},
-    {r:1.4,tilt:0.16,speed:0.0035*spd, lw:4.5,a:0.80,col:[255,240,180]}, // photon ring — bright
-    {r:1.25,tilt:0.30,speed:-0.005*spd, lw:1.0,a:0.40,col:[255,100,20]},
-    {r:1.1, tilt:0.12,speed:0.007*spd,  lw:2.0,a:0.60,col:[255,255,220]}, // innermost — white hot
-  ];
+  // Sun shrinks and implodes to a point
+  var R=sun.r*(1-phase*0.95);
 
-  for(var ri=0;ri<lensRings.length;ri++){
-    var lr=lensRings[ri];
-    var angle=t*lr.speed;
-    ctx.save();
-    ctx.translate(sx,sy);
-    ctx.rotate(angle);
-    ctx.scale(1,lr.tilt);
-    var ra=(lr.a*(0.6+phase*0.4));
-    ctx.strokeStyle="rgba("+lr.col[0]+","+lr.col[1]+","+lr.col[2]+","+ra+")";
-    ctx.lineWidth=lr.lw*(0.7+phase*0.4);
-    ctx.beginPath();ctx.arc(0,0,BHR*lr.r,0,6.28);ctx.stroke();
-    // secondary faint echo ring slightly offset
-    ctx.strokeStyle="rgba("+lr.col[0]+","+lr.col[1]+","+lr.col[2]+","+(ra*0.3)+")";
-    ctx.lineWidth=lr.lw*0.4;
-    ctx.beginPath();ctx.arc(0,0,BHR*lr.r*1.06,0,6.28);ctx.stroke();
-    ctx.restore();
+  if(phase<1){
+    // collapsing sun — shrinks rapidly, brightens white then vanishes
+    var brightness=1-phase*0.7;
+    var sg=ctx.createRadialGradient(sx,sy,0,sx,sy,R);
+    sg.addColorStop(0,"rgba(255,255,255,"+(brightness*0.95)+")");
+    sg.addColorStop(0.3,"rgba(255,220,180,"+(brightness*0.9)+")");
+    sg.addColorStop(1,"rgba(255,150,50,"+(brightness*0.7)+")");
+    ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx,sy,Math.max(0.5,R),0,6.28);ctx.fill();
+    // bright flash ring expanding out
+    var ringR=phase*sun.r*3;
+    var rg=ctx.createRadialGradient(sx,sy,ringR*0.7,sx,sy,ringR);
+    rg.addColorStop(0,"rgba(255,200,100,"+(0.4*(1-phase))+")");
+    rg.addColorStop(1,"rgba(255,150,50,0)");
+    ctx.fillStyle=rg;ctx.beginPath();ctx.arc(sx,sy,ringR,0,6.28);ctx.fill();
+  } else {
+    // singularity — just a tiny glowing point
+    var glow=0.5+Math.sin(t*0.02)*0.3;
+    var pg=ctx.createRadialGradient(sx,sy,0,sx,sy,8);
+    pg.addColorStop(0,"rgba(255,255,255,"+glow+")");
+    pg.addColorStop(0.4,"rgba(200,150,255,"+(glow*0.4)+")");
+    pg.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=pg;ctx.beginPath();ctx.arc(sx,sy,8,0,6.28);ctx.fill();
   }
-
-  // ── INNER GLOW — light compressed at horizon ──
-  var ig=ctx.createRadialGradient(sx,sy,BHR*0.85,sx,sy,BHR*1.5);
-  ig.addColorStop(0,"rgba(255,200,100,"+(0.0)+")");
-  ig.addColorStop(0.3,"rgba(255,200,100,"+(0.18+phase*0.15)+")");
-  ig.addColorStop(0.7,"rgba(255,140,40,"+(0.08+phase*0.08)+")");
-  ig.addColorStop(1,"rgba(0,0,0,0)");
-  ctx.fillStyle=ig;ctx.beginPath();ctx.arc(sx,sy,BHR*1.5,0,6.28);ctx.fill();
-
-  // ── SINGULARITY — absolute black, hard edge ──
-  ctx.fillStyle="#000";
-  ctx.beginPath();ctx.arc(sx,sy,BHR,0,6.28);ctx.fill();
-
-  // ── PHOTON SPHERE — thin bright ring right at the edge ──
-  // This is where photons actually orbit — very bright, thin
-  ctx.strokeStyle="rgba(255,240,200,"+(0.7+phase*0.25)+")";
-  ctx.lineWidth=1.5;
-  ctx.beginPath();ctx.arc(sx,sy,BHR*1.02,0,6.28);ctx.stroke();
-  ctx.strokeStyle="rgba(255,200,100,"+(0.3+phase*0.15)+")";
-  ctx.lineWidth=3;
-  ctx.beginPath();ctx.arc(sx,sy,BHR*1.05,0,6.28);ctx.stroke();
 }
 
 function updateBlackHole(dt){
@@ -844,7 +833,7 @@ function updateBlackHole(dt){
       var eaten=false;
       for(var i=0;i<orbs.length;i++){
         if(!orbs[i].dead&&!orbs[i].suctioning){
-          orbs[i].suctioning=true;orbs[i].suctionT=0;
+          orbs[i].suctioning=true;orbs[i].suctionT=0;orbs[i].suctionSpeed=60; // fast BH devour
           // apply penalty for each devoured orb
           orbsEaten++;score-=10;scorePenalty=1;
           penaltyPops.push({x:sun.x+(Math.random()-0.5)*30,y:sun.y-sun.r-10,vy:0,life:1,val:10});
@@ -852,14 +841,22 @@ function updateBlackHole(dt){
         }
       }
       if(!eaten){
-        blackHole.done=true;
+        // only mark done if no orbs are still mid-suction
+        var stillSuctioning=false;
+        for(var si=0;si<orbs.length;si++){if(!orbs[si].dead&&orbs[si].suctioning)stillSuctioning=true;}
+        if(!stillSuctioning)blackHole.done=true;
       }
     }
   }
-  if(blackHole.done&&blackHole.t>3000){
-    // show game over
+  if(blackHole.done&&blackHole.t>4000&&!chillMode){
     endGame();
     blackHole.active=false;
+  }
+  // safety: if BH active but no orbs and nothing suctioning, just end cleanly
+  if(blackHole.active&&blackHole.t>1500&&!blackHole.done){
+    var anyAlive=false;
+    for(var _i=0;_i<orbs.length;_i++){if(!orbs[_i].dead)anyAlive=true;}
+    if(!anyAlive)blackHole.done=true;
   }
 }
 
@@ -874,7 +871,7 @@ var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02+(sun.glow||0)*0.06);
 
   // warm outer glow
   var g3=ctx.createRadialGradient(sx,sy,0,sx,sy,R*6);
-  g3.addColorStop(0,"rgba(255,180,60,0.04)");
+  g3.addColorStop(0,"rgba(255,200,80,0.07)");
   g3.addColorStop(0.4,"rgba(255,120,40,0.015)");
   g3.addColorStop(1,"rgba(255,80,20,0)");
   ctx.fillStyle=g3;ctx.beginPath();ctx.arc(sx,sy,R*6,0,6.28);ctx.fill();
@@ -912,21 +909,39 @@ var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02+(sun.glow||0)*0.06);
   ctx.restore();
 
   // inner body — color shifts with mass accumulation
-  // 0% mass: warm yellow-orange (normal star)
-  // 50% mass: bright white-yellow (hotter, more compressed)
-  // 100% mass: eerie blue-white (critically massive, about to collapse)
+  // STELLAR EVOLUTION: bright yellow to red giant to neutron star to black hole
   var mp=sun.mass/sun.maxMass; // 0..1
-  // 0% → warm yellow-orange, 100% → pure blazing white
-  // All channels converge to 255 at full mass — white hot star
-  var coreR=255,coreG=~~(255-mp*10),coreB=~~(220+mp*35);
-  var mid1R=255,mid1G=~~(240-mp*40),mid1B=~~(160+mp*95);
-  var mid2R=255,mid2G=~~(200-mp*60),mid2B=~~(80+mp*175);
-  var rimR=255,rimG=~~(155-mp*55),rimB=~~(45+mp*210);
-  var edgeR=~~(220+mp*35),edgeG=~~(100+mp*55),edgeB=~~(25+mp*230);
-
+  var coreR,coreG,coreB,mid1R,mid1G,mid1B,mid2R,mid2G,mid2B,rimR,rimG,rimB,edgeR,edgeG,edgeB;
+  if(mp<0.35){
+    var sp=mp/0.35;
+    coreR=255;coreG=~~(252-sp*15);coreB=~~(180+sp*30);
+    mid1R=255;mid1G=~~(220-sp*25);mid1B=~~(100+sp*20);
+    mid2R=255;mid2G=~~(175-sp*25);mid2B=~~(50);
+    rimR=235;rimG=~~(130-sp*20);rimB=25;
+    edgeR=~~(190-sp*15);edgeG=80;edgeB=15;
+  } else if(mp<0.82){
+    // RED GIANT — pure orange to deep crimson, zero blue
+    var sp=(mp-0.38)/0.44;
+    coreR=255;coreG=~~(230-sp*150);coreB=0;
+    mid1R=255;mid1G=~~(160-sp*140);mid1B=0;
+    mid2R=~~(245-sp*60);mid2G=~~(80-sp*70);mid2B=0;
+    rimR=~~(180-sp*90);rimG=~~(30-sp*20);rimB=0;
+    edgeR=~~(80-sp*40);edgeG=5;edgeB=0;
+  } else {
+    // NEUTRON STAR — blue-white, starts after red giant collapses
+    var sp=(mp-0.82)/0.18;
+    coreR=~~(255-sp*100);coreG=~~(100+sp*155);coreB=255;
+    mid1R=~~(210-sp*100);mid1G=~~(60+sp*180);mid1B=255;
+    mid2R=~~(130-sp*60);mid2G=~~(30+sp*195);mid2B=255;
+    rimR=50;rimG=~~(20+sp*200);rimB=255;
+    edgeR=15;edgeG=~~(10+sp*160);edgeB=~~(210+sp*45);
+  }
+  // inner body with sunspots, convection, plasma loops
   ctx.save();ctx.translate(sx,sy);
   ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.clip();
-  var gc=ctx.createRadialGradient(-R*0.15,-R*0.15,0,0,0,R);
+
+  // base color
+  var gc=ctx.createRadialGradient(-R*0.12,-R*0.12,0,0,0,R);
   gc.addColorStop(0,"rgba("+coreR+","+coreG+","+coreB+",0.97)");
   gc.addColorStop(0.2,"rgba("+mid1R+","+mid1G+","+mid1B+",0.95)");
   gc.addColorStop(0.5,"rgba("+mid2R+","+mid2G+","+mid2B+",0.9)");
@@ -934,22 +949,35 @@ var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02+(sun.glow||0)*0.06);
   gc.addColorStop(1,"rgba("+edgeR+","+edgeG+","+edgeB+",0.75)");
   ctx.fillStyle=gc;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
 
-  // granulation color also shifts
-  for(var i=0;i<5;i++){
-    var sa2=t*0.00015+i*1.26;
-    var sx2=Math.cos(sa2)*R*0.38,sy2=Math.sin(sa2)*R*0.38;
-    var sg=ctx.createRadialGradient(sx2,sy2,0,sx2,sy2,R*0.32);
-    var grR=~~(255-mp*30),grG=~~(255-mp*120),grB=~~(220+mp*35);
-    sg.addColorStop(0,"rgba("+grR+","+grG+","+grB+",0.13)");
-    sg.addColorStop(1,"rgba("+grR+","+grG+","+grB+",0)");
-    ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx2,sy2,R*0.32,0,6.28);ctx.fill();
+  // convection cells - bright granules
+  for(var ci=0;ci<8;ci++){
+    var ca=t*0.00008+ci*0.785;
+    var cr=R*(0.2+Math.sin(ci*1.3)*0.08);
+    var cx2=Math.cos(ca)*R*0.38,cy2=Math.sin(ca+0.4)*R*0.32;
+    var bright=ctx.createRadialGradient(cx2,cy2,0,cx2,cy2,cr);
+    bright.addColorStop(0,"rgba("+Math.min(255,coreR+20)+","+Math.min(255,coreG+18)+","+coreB+",0.2)");
+    bright.addColorStop(1,"rgba("+coreR+","+coreG+","+coreB+",0)");
+    ctx.fillStyle=bright;ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();
   }
 
-  // light limb darkening
-  var ed=ctx.createRadialGradient(0,0,R*0.55,0,0,R);
-  ed.addColorStop(0,"rgba(0,0,0,0)");
-  ed.addColorStop(1,"rgba(160,60,10,0.28)");
-  ctx.fillStyle=ed;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
+  // plasma loop filaments
+  ctx.strokeStyle="rgba("+Math.min(255,coreR+15)+","+Math.min(255,coreG+10)+","+~~(coreB*0.6)+",0.16)";
+  ctx.lineWidth=R*0.022;ctx.lineCap="round";
+  for(var pi=0;pi<4;pi++){
+    var pa=t*0.00012+pi*1.571;
+    var px1=Math.cos(pa)*R*0.5,py1=Math.sin(pa)*R*0.5;
+    var px2=Math.cos(pa+0.75)*R*0.58,py2=Math.sin(pa+0.75)*R*0.58;
+    var cpx=Math.cos(pa+0.38)*R*0.82,cpy=Math.sin(pa+0.38)*R*0.82;
+    ctx.beginPath();ctx.moveTo(px1,py1);ctx.quadraticCurveTo(cpx,cpy,px2,py2);ctx.stroke();
+  }
+  ctx.lineCap="butt";
+
+  // limb darkening
+  var ld=ctx.createRadialGradient(0,0,R*0.5,0,0,R);
+  ld.addColorStop(0,"rgba(0,0,0,0)");
+  ld.addColorStop(0.65,"rgba(0,0,0,0.06)");
+  ld.addColorStop(1,"rgba(0,0,0,0.5)");
+  ctx.fillStyle=ld;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
   ctx.restore();
 
   // warm golden rim
@@ -1102,7 +1130,7 @@ function getLaunchParams(){
 function simulateTraj(sx,sy,vx,vy,steps){
   var pts=[{x:sx,y:sy}];var x=sx,y=sy,tvx=vx,tvy=vy;
   for(var i=0;i<steps;i++){
-    for(var s=0;s<3;s++){var dx=sun.x-x,dy=sun.y-y,d=Math.sqrt(dx*dx+dy*dy);if(d<sun.r)return pts;var f=GM/(d*d);if(f>0.2)f=0.2;tvx+=dx/d*f*16.67;tvy+=dy/d*f*16.67;x+=tvx*16.67*TS;y+=tvy*16.67*TS;}
+    for(var s=0;s<3;s++){var dx=sun.x-x,dy=sun.y-y,d=Math.sqrt(dx*dx+dy*dy);if(d<sun.r)return pts;var f=getGM()/(d*d);if(f>0.2)f=0.2;tvx+=dx/d*f*16.67;tvy+=dy/d*f*16.67;x+=tvx*16.67*TS;y+=tvy*16.67*TS;}
     pts.push({x:x,y:y});
   }
   return pts;
@@ -1235,13 +1263,13 @@ function drawLauncher(t){
     var power=lp.power;
     var lineCol=l3([100,200,255],[255,160,60],power);
 
-    // ── PULL LINE: platform center → pulled orb (one solid line) ──
+    // ── PULL LINE: platform center to pulled orb (one solid line) ──
     ctx.strokeStyle=rgba(lineCol,0.35+power*0.45);
     ctx.lineWidth=1.5+power*1.0;ctx.lineCap="round";
     ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(previewX,previewY);ctx.stroke();
     ctx.lineCap="butt";
 
-    // ── LEADER LINE: orb position → predicted trajectory ──
+    // ── LEADER LINE: orb position to predicted trajectory ──
     var numPts=Math.floor(18+power*55);
     var traj=simulateTraj(lx,ly,lp.vx,lp.vy,numPts);
     if(traj.length>2){
@@ -1279,6 +1307,7 @@ function drawLauncher(t){
 }
 
 function autoLaunch(){
+  if(blackHole.active||blackHole.done)return;
   // fire toward sun automatically — punishes player for ignoring launcher
   var r=launcher.nextR;
   var dx=sun.x-launcher.x,dy=sun.y-launcher.y;
@@ -1329,7 +1358,7 @@ var subDt=dt/4;
 for(var _s=0;_s<4;_s++){
   var _dx=sun.x-o.x,_dy=sun.y-o.y,_dd=Math.sqrt(_dx*_dx+_dy*_dy);
   if(_dd<sun.r*0.5)break;
-  var _f=GM/(_dd*_dd); // no cap — real Kepler
+  var _f=getGM()/(_dd*_dd); // no cap — real Kepler
   o.vx+=_dx/_dd*_f*subDt;o.vy+=_dy/_dd*_f*subDt;
   o.x+=o.vx*subDt*TS;o.y+=o.vy*subDt*TS;
 }
@@ -1337,43 +1366,60 @@ for(var _s=0;_s<4;_s++){
 var dx=sun.x-o.x,dy=sun.y-o.y;
 var dd=Math.sqrt(dx*dx+dy*dy);
 var _radV=dd>1?(o.vx*(-dx/dd)+o.vy*(-dy/dd)):1;
-var _sunCollide=sun.r*0.72;
+var _sunCollide=blackHole.active?15:sun.r*0.72;
+
+// GRAZING DRAG — planet overlapping sun surface slows down but doesn't immediately absorb
+// allows very fast tangential passes to escape, but marginal ones get caught
+if(!o.suctioning&&dd<sun.r+o.baseR&&dd>_sunCollide+o.baseR*0.6){
+  var overlap=1-((dd-_sunCollide-o.baseR*0.6)/(sun.r+o.baseR-_sunCollide-o.baseR*0.6));
+  var dragFactor=1-overlap*0.12; // up to 12% speed reduction per frame while grazing
+  o.vx*=dragFactor;o.vy*=dragFactor;
+}
+
 // trigger suction if falling in, OR if already inside sun (escaped sub-step guard)
-if(!o.suctioning&&(dd<_sunCollide+o.baseR*0.6&&_radV>0.02||dd<sun.r*0.6)){
+if(!o.suctioning&&(dd<_sunCollide+o.baseR*0.6&&_radV>0.02||dd<(blackHole.active?20:sun.r*0.6))){
   o.suctioning=true;o.suctionT=0;
   disturb(sun.x,sun.y,1.5);
   try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
 }
 if(o.suctioning){
-  o.suctionT+=dt/380;
+  o.suctionT+=dt/100; // 100ms — just fade and die at edge
   var st=o.suctionT;
-  // simple direct lerp toward sun center — proven working approach
-  o.x+=(sun.x-o.x)*0.12;
-  o.y+=(sun.y-o.y)*0.12;
-  o.vx*=0.85;o.vy*=0.85;
-  o.r=o.baseR*Math.max(0,1-st*st);
-  // force complete at 1.0 regardless of position
+  // stays in place, just shrinks and fades
+  o.vx*=0.7;o.vy*=0.7;
+  o.r=o.baseR*Math.max(0,1-st);
+  o.alpha=Math.max(0,1-st);
   if(o.suctionT>=1){
-    o.x=sun.x;o.y=sun.y;
+    o.x=o.x;o.y=o.y; // dies where it is, at sun edge
     o.dead=true;o.respawnTimer=0;
     orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:10,score:score});
     var massGain=Math.max(0.3,o.baseR/30);
     if(!chillMode){
+      var _prevMp=sun.mass/sun.maxMass;
+      var _prevPhase=_prevMp<0.38?0:_prevMp<0.82?1:2; // save BEFORE update
       sun.mass=Math.min(sun.maxMass,sun.mass+massGain);
-      sun.r=SUN_BASE_R+sun.mass*0.8;
+      // Stellar evolution radius + phase transition flashes
+    var _mp2=sun.mass/sun.maxMass;
+    if(_mp2<0.38){ sun.r=SUN_BASE_R+sun.mass*0.5; }
+    else if(_mp2<0.82){ var _rg=(_mp2-0.38)/0.44; sun.r=SUN_BASE_R*1.1+_rg*SUN_BASE_R*1.1; }
+    else { var _ns=((_mp2-0.82)/0.18); sun.r=SUN_BASE_R*(2.4-_ns*1.8); }
+    // flash on phase crossings
+    var _newPhase=_mp2<0.38?0:_mp2<0.82?1:2;
+    if(_newPhase!==_prevPhase){
+      blackHole.flash=(_newPhase===2)?1.0:0.6; // bigger flash for neutron star
+      disturb(sun.x,sun.y,5);addRing(sun.x,sun.y,2.5);addRing(sun.x,sun.y,1.8);
+    }
       if(sun.mass>=sun.maxMass&&!blackHole.active&&!blackHole.done)triggerBlackHole();
     }
     score-=10;scorePenalty=1;
     penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:10});
-    disturb(sun.x,sun.y,3.0);
-    addRing(sun.x,sun.y,1.5);
-    sun.glow=(sun.glow||0)+0.4;
+    sun.glow=(sun.glow||0)+0.4; // subtle flash, no ring/ripple
     return;
   }
   return;
 }var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;// circular soft boundary — tight push-back band near edge, invisible otherwise
-var bx=o.x-W/2,by=o.y-H/2,bd=Math.sqrt(bx*bx+by*by);
-var mD=Math.max(W,H)*0.65; // well beyond screen
+var bx=o.x-sun.x,by=o.y-sun.y,bd=Math.sqrt(bx*bx+by*by); // centered on sun
+var mD=600; // 600px fixed radius from sun — visible when zoomed out
 var pushZone=mD*0.12; // push starts 8% before boundary
 var distToEdge=mD-bd;
 if(distToEdge<pushZone&&bd>1){
@@ -1398,11 +1444,12 @@ function drawLeaderLine(o){
   if(o.dead||o.suctioning)return;
   var tsx=sun.x-o.x,tsy=sun.y-o.y,tsd2=Math.sqrt(tsx*tsx+tsy*tsy);
   var radVel=(tsd2>1)?(o.vx*(-tsx/tsd2)+o.vy*(-tsy/tsd2)):0;
-  var state=radVel<-0.06?'red':radVel>0.06?'yellow':'blue';
+  // positive radVel = toward sun (red), negative = away (yellow), ~0 = stable (blue)
+  var state=radVel>0.06?'red':radVel<-0.06?'yellow':'blue';
   var cfgs={
-    blue:  {col:[80,170,255], steps:120,dashOn:6,dashOff:4,lw:1.0,pulse:false},
-    yellow:{col:[230,210,60], steps:55, dashOn:5,dashOff:5,lw:0.9,pulse:false},
-    red:   {col:[230,70,50],  steps:18, dashOn:3,dashOff:4,lw:0.8,pulse:true}
+    blue:  {col:[80,170,255], steps:120, lw:1.1},
+    yellow:{col:[230,210,60], steps:60,  lw:1.0},
+    red:   {col:[230,70,50],  steps:55,  lw:1.1}  // same length as yellow — always visible
   };
   var cfg=cfgs[state];
   if(!o._leaderPts||_frameN%8===0||o._leaderState!==state){
@@ -1412,7 +1459,7 @@ function drawLeaderLine(o){
       for(var s=0;s<2;s++){
         var dx2=sun.x-x,dy2=sun.y-y,d2=Math.sqrt(dx2*dx2+dy2*dy2);
         if(d2<sun.r+2){i=cfg.steps;break;}
-        var f2=GM/(d2*d2);
+        var f2=getGM()/(d2*d2);
         vx+=dx2/d2*f2*16.67;vy+=dy2/d2*f2*16.67;
         x+=vx*16.67*TS;y+=vy*16.67*TS;
       }
@@ -1422,35 +1469,34 @@ function drawLeaderLine(o){
   }
   var pts=o._leaderPts;
   if(pts.length<2)return;
-  var pulseMult=cfg.pulse?(0.5+Math.sin(Date.now()*0.008)*0.5):1;
+  var pulseMult=(state==='red')?(0.55+Math.sin(Date.now()*0.01)*0.45):1;
   var c=cfg.col;
-  ctx.save();
-  // clip out other orbs
-  ctx.beginPath();ctx.rect(0,0,W,H);
-  for(var oi=0;oi<orbs.length;oi++){
-    var oo=orbs[oi];if(oo===o||oo.dead)continue;
-    ctx.moveTo(oo.x+oo.baseR*1.4,oo.y);
-    ctx.arc(oo.x,oo.y,oo.baseR*1.4,0,6.28,true);
-  }
-  ctx.clip("evenodd");
+  var moonMult=o.isMoon?0.4:1;
 
-  // draw as ONE continuous path with a gradient-like fade using a single stroke
-  // to avoid per-segment dots, use a linear fade via globalAlpha on the whole path
-  // split into 3 opacity zones: near (bright), mid, far (faint)
-  var zones=[
-    {from:0,   to:0.35, alpha:0.65*pulseMult},
-    {from:0.35,to:0.65, alpha:0.35*pulseMult},
-    {from:0.65,to:1.0,  alpha:0.12*pulseMult}
-  ];
+  ctx.save();
   ctx.lineWidth=cfg.lw;
-  ctx.lineCap="butt";
+  ctx.lineCap="round";
   ctx.setLineDash([]);
+
+  // find first point outside the planet radius so line starts at planet edge
+  var startIdx=0;
+  for(var i=1;i<pts.length;i++){
+    var ex=pts[i].x-o.x,ey=pts[i].y-o.y;
+    if(ex*ex+ey*ey>o.baseR*o.baseR*1.1){startIdx=i;break;}
+  }
+
+  // 3 opacity zones fading to invisible
+  var zones=[
+    {from:0,   to:0.4,  alpha:0.75*pulseMult*moonMult},
+    {from:0.4, to:0.7,  alpha:0.4*pulseMult*moonMult},
+    {from:0.7, to:1.0,  alpha:0.15*pulseMult*moonMult}
+  ];
   for(var z=0;z<zones.length;z++){
     var zn=zones[z];
-    var i0=~~(zn.from*(pts.length-1));
-    var i1=~~(zn.to*(pts.length-1));
+    var i0=startIdx+~~(zn.from*(pts.length-1-startIdx));
+    var i1=startIdx+~~(zn.to*(pts.length-1-startIdx));
     if(i1<=i0)continue;
-    ctx.globalAlpha=zn.alpha*(o.isMoon?0.4:1);
+    ctx.globalAlpha=zn.alpha;
     ctx.strokeStyle="rgba("+c[0]+","+c[1]+","+c[2]+",1)";
     ctx.beginPath();
     ctx.moveTo(pts[i0].x,pts[i0].y);
@@ -1458,7 +1504,6 @@ function drawLeaderLine(o){
     ctx.stroke();
   }
   ctx.globalAlpha=1;
-  ctx.setLineDash([]);
   ctx.restore();
 }
 
@@ -1509,8 +1554,10 @@ function drawTrail(o){
   ctx.lineJoin="miter";
 }
 function drawOrb(o){
+  ctx.globalAlpha=1; // always reset on entry
   if(o.dead)return;
   var effR=o.suctioning?o.r:o.baseR;
+  if(o.suctioning&&o.alpha!==undefined)ctx.globalAlpha=Math.max(0,o.alpha);
   var rx=effR*(1+o.squishX*0.2),ry=effR*(1+o.squishY*0.2);
   if(rx<0.5||ry<0.5)return;
   var r=Math.max(rx,ry);
@@ -1692,6 +1739,7 @@ function drawOrb(o){
     ctx.restore();
   }
 
+  ctx.globalAlpha=1; // reset after suction fade
   // glow ring if recently hit
   if(g>0.05){
     ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+","+g*0.4+")";
@@ -1781,43 +1829,114 @@ function collide(){for(var p=0;p<3;p++){for(var i=0;i<orbs.length;i++){if(orbs[i
 var rings=[];function addRing(x,y,s){rings.push({x:x,y:y,rad:0,mx:55+s*75,life:1,spd:0.5+s*0.3})}
 
 var dragN=0;
-function gXY(e){var t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY}}
+function gXY(e){
+  var t=e.touches?e.touches[0]:e;
+  var sx=t.clientX,sy=t.clientY;
+  // convert screen coords to world coords (pivot is W/2,H/2)
+  var wx=(sx-W/2)/zoom+W/2;
+  var wy=(sy-H/2)/zoom+H/2;
+  return{x:wx,y:wy,sx:sx,sy:sy};
+}
 function inLZ(p){return Math.sqrt((p.x-launcher.x)**2+(p.y-launcher.y)**2)<LAUNCH_ZONE_R&&launcher.cooldown<=0;}
 function inHandle(p){
   var trackX=W-22,handleY=launcher.y;
   return p.x>trackX-18&&p.x<trackX+18&&p.y>handleY-20&&p.y<handleY+20;
 }
 function inMenuZone(p){return p.x>=W-56&&p.y>=48&&p.y<=82;}
-function onD(e){e.preventDefault();var p=gXY(e);
-  if(inMenuZone(p)){showMenu();return;}
-  if(inHandle(p)){launcher.draggingHandle=true;return;}
+function _pinchDist(e){
+  var dx=e.touches[0].clientX-e.touches[1].clientX;
+  var dy=e.touches[0].clientY-e.touches[1].clientY;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function onD(e){e.preventDefault();
+  // 2 fingers = pinch zoom
+  if(e.touches&&e.touches.length===2){
+    _pinching=true;_pinchDist0=_pinchDist(e);
+    // cancel any single-touch gesture
+    well.active=false;well.trail=[];launcher.pulling=false;launcher.draggingHandle=false;
+    return;
+  }
+  _pinching=false;
+  var p=gXY(e);
+  // use screen coords for UI zones (not zoomed)
+  var ps={x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY};
+  if(inMenuZone(ps)){showMenu();return;}
+  if(inHandle(ps)){launcher.draggingHandle=true;return;}
   if(inLZ(p)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}
   else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}
 }
-function onM(e){e.preventDefault();var p=gXY(e);
-  if(launcher.draggingHandle){
-    var trackTop=sun.y+sun.r+50;
-    var trackBot=H-30;
-    launcher.y=Math.max(trackTop,Math.min(trackBot,p.y));
-    launcher.x=W/2; // keep centered horizontally
+function onM(e){e.preventDefault();
+  // 2 fingers = update pinch
+  if(e.touches&&e.touches.length===2){
+    if(!_pinching){_pinching=true;_pinchDist0=_pinchDist(e);return;}
+    var d=_pinchDist(e);
+    if(_pinchDist0>0){
+      var ratio=1+(d/_pinchDist0-1)*0.5; // dampen sensitivity
+      var newZoom=zoomTarget*ratio;
+zoomTarget=Math.max(0.35,Math.min(2.0,newZoom));
+      _pinchDist0=d;
+    }
     return;
   }
-  if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}if(!well.active)return;well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;well.vx=well.x-well.px;well.vy=well.y-well.py;var spd=Math.sqrt(well.vx**2+well.vy**2);disturb(well.x,well.y,0.2+spd*0.01);well.trail.push({x:well.x,y:well.y,age:0,dep:well.depth});if(well.trail.length>40)well.trail.shift();dragN++;}
-function onU(e){e.preventDefault();if(launcher.draggingHandle){launcher.draggingHandle=false;return;}if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}if(well.active){disturb(well.x,well.y,0.8);}well.active=false;well.trail=[];dragN=0;}
-canvas.addEventListener("touchstart",onD,{passive:false});canvas.addEventListener("touchmove",onM,{passive:false});canvas.addEventListener("touchend",onU,{passive:false});
-canvas.addEventListener("mousedown",onD,false);canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);canvas.addEventListener("mouseup",onU,false);
+  if(_pinching)return;
+  var p=gXY(e);
+  var ps={x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY};
+  if(launcher.draggingHandle){
+    var trackTop=(sun.y+sun.r+50-H/2)/zoom+H/2;
+    var trackBot=(H-30-H/2)/zoom+H/2;
+    launcher.y=Math.max(sun.y+sun.r+50,Math.min(H-30,p.y));
+    launcher.x=W/2;
+    return;
+  }
+  if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}
+  if(!well.active)return;
+  well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;
+  well.vx=well.x-well.px;well.vy=well.y-well.py;
+  var spd=Math.sqrt(well.vx**2+well.vy**2);
+  disturb(well.x,well.y,0.2+spd*0.01);
+  well.trail.push({x:well.x,y:well.y,age:0,dep:well.depth});
+  if(well.trail.length>40)well.trail.shift();dragN++;
+}
+function onU(e){e.preventDefault();
+  if(e.touches&&e.touches.length>0){return;} // still touching
+  _pinching=false;
+  if(launcher.draggingHandle){launcher.draggingHandle=false;return;}
+  if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}
+  if(well.active){disturb(well.x,well.y,0.8);}
+  well.active=false;well.trail=[];dragN=0;
+}
+canvas.addEventListener("touchstart",onD,{passive:false});
+canvas.addEventListener("touchmove",onM,{passive:false});
+canvas.addEventListener("touchend",onU,{passive:false});
+canvas.addEventListener("mousedown",onD,false);
+canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);
+canvas.addEventListener("mouseup",onU,false);
+canvas.addEventListener("wheel",function(e){
+  e.preventDefault();
+  var delta=e.deltaY>0?-0.08:0.08;
+  zoomTarget=Math.max(0.35,Math.min(2.0,zoomTarget+delta));
+},{passive:false});
+// double-tap to reset zoom
+var _lastTap=0;
+canvas.addEventListener("touchend",function(e){
+  var now=Date.now();
+  if(now-_lastTap<300&&e.changedTouches.length===1){zoomTarget=1.0;}
+  _lastTap=now;
+},{passive:false});
 
 function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){
     if(!paused){paused=true;lastT=0;window._autoPaused=true;}
-    // show menu so player can resume, save, or restart when they return
+    // clear ALL touch state so no ghost touches on return
+    well.active=false;well.depth=0;well.holdTime=0;well.trail=[];
+    launcher.pulling=false;launcher.draggingHandle=false;
+    dragN=0;
+    // show menu
     var mo=document.getElementById('menu-overlay');
     if(mo&&mo.style.display==='none')mo.style.display='flex';
     showTab('game');
-  } else {
-    // don't auto-resume — let player choose via menu
   }
 });
 window.addEventListener("pagehide",function(){paused=true;lastT=0;});
@@ -2111,34 +2230,50 @@ function drawScore(t){
 
 
 function drawOffscreenIndicators(){
-  var margin=18,arrowSize=7;
+  var margin=22;
   for(var i=0;i<orbs.length;i++){
-    var o=orbs[i];if(o.dead)continue;
-    var offX=o.x<-o.baseR||o.x>W+o.baseR;
-    var offY=o.y<-o.baseR||o.y>H+o.baseR;
-    if(!offX&&!offY)continue;
-    // clamp to screen edge
-    var ex=Math.max(margin,Math.min(W-margin,o.x));
-    var ey=Math.max(margin,Math.min(H-margin,o.y));
+    var o=orbs[i];if(o.dead||o.suctioning)continue;
+    if(o.x>=-o.baseR&&o.x<=W+o.baseR&&o.y>=-o.baseR&&o.y<=H+o.baseR)continue;
+    // angle from screen center toward orb
     var ang=Math.atan2(o.y-H/2,o.x-W/2);
-    // pin to edge
-    var px2,py2;
-    if(o.x<0){px2=margin;py2=Math.max(margin,Math.min(H-margin,o.y));}
-    else if(o.x>W){px2=W-margin;py2=Math.max(margin,Math.min(H-margin,o.y));}
-    else{px2=Math.max(margin,Math.min(W-margin,o.x));py2=o.y<0?margin:H-margin;}
+    // intersect ray from center with screen edge
+    var tx=Math.cos(ang),ty=Math.sin(ang);
+    var tX=(tx>0?W-margin:margin);
+    var tY=(ty>0?H-margin:margin);
+    var tAtX=(tx!==0)?(tX-W/2)/tx:Infinity;
+    var tAtY=(ty!==0)?(tY-H/2)/ty:Infinity;
+    var t2=Math.min(Math.abs(tAtX),Math.abs(tAtY));
+    var px2=W/2+tx*t2,py2=H/2+ty*t2;
+    px2=Math.max(margin,Math.min(W-margin,px2));
+    py2=Math.max(margin,Math.min(H-margin,py2));
+    // distance — scale indicator opacity with how far off screen
+    var dist=Math.sqrt((o.x-W/2)*(o.x-W/2)+(o.y-H/2)*(o.y-H/2));
+    var alpha=Math.min(0.85,0.4+Math.min(1,(dist-Math.min(W,H)*0.5)/200)*0.45);
     var c=stabCol(o.instability);
+    var pulse=1; // pulse red orbs
+    if(o.instability>0.6) pulse=0.6+Math.sin(Date.now()*0.008)*0.4;
     ctx.save();ctx.translate(px2,py2);ctx.rotate(ang);
-    // orb icon
-    ctx.strokeStyle=rgba(c,0.7);ctx.lineWidth=1;
-    ctx.beginPath();ctx.arc(0,0,5,0,6.28);ctx.stroke();
-    ctx.fillStyle=rgba(c,0.25);ctx.beginPath();ctx.arc(0,0,5,0,6.28);ctx.fill();
-    // arrow pointing outward
-    ctx.fillStyle=rgba(c,0.6);
+    // planet dot
+    ctx.fillStyle=rgba(c,alpha*0.35*pulse);
+    ctx.beginPath();ctx.arc(0,0,6,0,6.28);ctx.fill();
+    ctx.strokeStyle=rgba(c,alpha*0.9*pulse);ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(0,0,6,0,6.28);ctx.stroke();
+    // arrow chevron pointing toward planet
+    ctx.fillStyle=rgba(c,alpha*0.85*pulse);
     ctx.beginPath();
-    ctx.moveTo(10,0);ctx.lineTo(10-arrowSize,-arrowSize*0.6);ctx.lineTo(10-arrowSize,arrowSize*0.6);
+    ctx.moveTo(13,0);ctx.lineTo(8,-4.5);ctx.lineTo(9.5,0);ctx.lineTo(8,4.5);
     ctx.closePath();ctx.fill();
     ctx.restore();
   }
+}
+
+function drawVignette(){
+  // soft darkening toward screen edges — sense of boundary without a hard line
+  var vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
+  vg.addColorStop(0,"rgba(0,0,0,0)");
+  vg.addColorStop(0.6,"rgba(0,0,0,0.04)");
+  vg.addColorStop(1,"rgba(0,0,0,0.35)");
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
 }
 
 function drawMenuBtn(){
@@ -2238,7 +2373,7 @@ function toggleChill(){
   // reset game state when switching modes
   score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];
   orbsEaten=0;sun.mass=0;sun.r=SUN_BASE_R;
-  blackHole.active=false;blackHole.t=0;blackHole.done=false;blackHole.flash=0;
+  blackHole.active=false;blackHole.t=0;blackHole.devourT=0;blackHole.done=false;blackHole.flash=0;
   orbs=[];rings=[];launcher.launchNum=0;launcher.launchWindow=0;launcher.cooldown=0;
   sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;sun.homeX=W/2;sun.homeY=H/2;
   initOrbs();queueNext();
@@ -2483,7 +2618,7 @@ for(var _ti=well.trail.length-1;_ti>=0;_ti--){well.trail[_ti].age+=dt/800;if(wel
 // well depth — builds while held, decays fast on release
 if(well.active){
   well.holdTime=Math.min(1000,well.holdTime+dt);
-  well.depth=well.holdTime/1000; // 0→1 over 3s
+  well.depth=well.holdTime/1000; // 0-1 over 3s
 } else {
   well.depth=Math.max(0,well.depth-dt/400); // fades in 0.4s
   if(well.depth<=0)well.holdTime=0;
@@ -2497,15 +2632,49 @@ if(launcher.cooldown>0){
     autoLaunch();
   }
 }
-tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}_frameN++;_frameN++;ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);
+tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}_frameN++;ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);
+// smooth zoom toward target
+zoom+=(zoomTarget-zoom)*0.1;
+if(Math.abs(zoom-zoomTarget)<0.001)zoom=zoomTarget;
 
-for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}updateScore(dt);applyPuck();applyG();collide();for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}for(var i=0;i<orbs.length;i++)drawLeaderLine(orbs[i]);// black hole trigger flash
-if(blackHole.flash>0){
-  blackHole.flash-=0.06;
-  ctx.fillStyle="rgba(255,220,100,"+Math.max(0,blackHole.flash)+")";
-  ctx.fillRect(0,0,W,H);
-}
-drawPuck();drawLauncherIdleHint();drawLauncher(time);drawLauncherHandle(launcher.x,launcher.y);drawOffscreenIndicators();drawScore(time);drawMenuBtn();drawLogo();}
+// ── GAME WORLD (zoomed) ──
+ctx.save();
+ctx.translate(W/2,H/2);
+ctx.scale(zoom,zoom);
+ctx.translate(-W/2,-H/2);
+drawNebula(time);drawGalaxies(time);drawStars(time);stepW();drawGrid(time);updateSun(dt);drawSun(time);
+for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);
+for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}
+updateScore(dt);applyPuck();applyG();collide();
+for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}
+for(var i=0;i<orbs.length;i++)drawLeaderLine(orbs[i]);
+if(blackHole.flash>0){blackHole.flash-=0.06;ctx.fillStyle="rgba(255,220,100,"+Math.max(0,blackHole.flash)+")";ctx.fillRect(0,0,W,H);}
+drawPuck();
+ctx.restore(); // ── END GAME WORLD ──
+
+// ── UI (fixed, not zoomed) ──
+drawVignette();
+drawLauncherIdleHint();
+if(!blackHole.active&&!blackHole.done){drawLauncher(time);}
+drawLauncherHandle(launcher.x,launcher.y);
+drawOffscreenIndicators();
+drawScore(time);
+drawMenuBtn();
+drawLogo();
+// game over text
+if(blackHole.active&&blackHole.t>1000){
+  var goAlpha=Math.min(1,(blackHole.t-1000)/800);
+  ctx.save();ctx.globalAlpha=goAlpha;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='bold '+~~(W*0.1)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(255,80,80,0.9)';
+  ctx.shadowColor='rgba(255,50,50,0.6)';ctx.shadowBlur=20;
+  ctx.fillText('GAME OVER',W/2,H*0.38);ctx.shadowBlur=0;
+  ctx.font='bold '+~~(W*0.06)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  ctx.fillText(score,W/2,H*0.38+~~(W*0.12));
+  ctx.restore();
+}}
 resize();requestAnimationFrame(frame);
 // expose menu functions to global scope for onclick handlers
 window.startGame=startGame;

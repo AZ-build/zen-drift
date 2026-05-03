@@ -1437,8 +1437,20 @@ var _eEps=_ev2/2-_eGM/Math.max(_er,1);
 var _eH=_edx*o.vy-_edy*o.vx;
 var _ecc=(_eEps<0)?Math.sqrt(Math.max(0,1+2*_eEps*_eH*_eH/(_eGM*_eGM))):1;
 o.eccSmooth=o.eccSmooth===undefined?_ecc:o.eccSmooth*0.94+_ecc*0.06;
-var _canEnter=o.eccSmooth<0.20&&o.instability<0.35&&!o.suctioning;
-var _mustExit=o.eccSmooth>0.28||o.instability>0.50||o.suctioning;
+// orbit closure: leader line tip approaching oldest trail point — shared by trail glow + multiplier
+var _visLenC=Math.max(60,Math.floor(TRAIL_LEN*(0.5+0.5*Math.max(0,1-o.eccSmooth))));
+var _siC=Math.max(0,o.trail.length-_visLenC);
+var _t0C=o.trail.length>0?o.trail[_siC]:null;
+var _leC=o._leaderPts&&o._leaderPts.length>5?o._leaderPts[o._leaderPts.length-1]:null;
+if(_leC&&_t0C){
+  var _orbRC=Math.sqrt((o.x-sun.x)*(o.x-sun.x)+(o.y-sun.y)*(o.y-sun.y));
+  var _threshC=Math.max(40,_orbRC*0.18+o.r*5);
+  var _odC=Math.sqrt((_leC.x-_t0C.x)*(_leC.x-_t0C.x)+(_leC.y-_t0C.y)*(_leC.y-_t0C.y));
+  o.closeT=!o._leaderHit?Math.max(0,1-_odC/_threshC):0;
+} else {o.closeT=0;}
+var _isClosed=o.closeT>0.55;
+var _canEnter=(_isClosed||o.eccSmooth<0.20)&&o.instability<0.35&&!o.suctioning;
+var _mustExit=o.eccSmooth>0.28&&!_isClosed||o.instability>0.50||o.suctioning;
 o.isCircular=o.isCircular?!_mustExit:_canEnter;
 if(o.isCircular&&!o._wasCircular){
   worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
@@ -1555,14 +1567,8 @@ function drawTrail(o){
   var visLen=Math.max(60,Math.floor(TRAIL_LEN*(0.5+0.5*Math.max(0,1-ecc))));
   var si=Math.max(0,len-visLen);
   var t0=tr[si];
-  // closure: leader line's far end approaches the oldest trail point
-  var _lp=o._leaderPts;
-  var _le=(_lp&&_lp.length>5)?_lp[_lp.length-1]:null;
-  var _od=_le?Math.sqrt((_le.x-t0.x)*(_le.x-t0.x)+(_le.y-t0.y)*(_le.y-t0.y)):Infinity;
-  var _orbR=Math.sqrt((o.x-sun.x)*(o.x-sun.x)+(o.y-sun.y)*(o.y-sun.y));
-  var _thresh=Math.max(35,_orbR*0.14+o.r*4);
-  var closeT=(!o._leaderHit&&_le)?Math.max(0,1-_od/_thresh):0;
-  var closed=closeT>0.65;
+  var closeT=o.closeT!==undefined?o.closeT:0;
+  var closed=closeT>0.55;
   // colour blend: grey (ecc=1) → blue (ecc=0) → cyan (closure)
   var blendT=Math.max(0,Math.min(1,(0.90-ecc)/0.90));
   var _cr=~~(200-120*blendT);

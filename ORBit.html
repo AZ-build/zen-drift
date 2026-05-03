@@ -1920,7 +1920,7 @@ function inHomeBtn(p){
   var jb=joyBase();
   var sx=p.sx!==undefined?p.sx:p.x;
   var sy=p.sy!==undefined?p.sy:p.y;
-  var hx=jb.bx+JOY_R*2+12,hy=jb.by;
+  var hx=jb.bx,hy=jb.by-JOY_R-22;
   return (Math.abs(camX)>8||Math.abs(camY)>8)&&Math.sqrt((sx-hx)*(sx-hx)+(sy-hy)*(sy-hy))<20;
 }
 function _pinchDist(e){
@@ -2409,9 +2409,9 @@ function drawJoystick(){
   // compass ticks (N/S/E/W hints)
   ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.5+")";ctx.lineWidth=0.8;
   for(var ti=0;ti<4;ti++){var ta=ti*1.571;ctx.beginPath();ctx.moveTo(bx+Math.cos(ta)*(JOY_R-8),by+Math.sin(ta)*(JOY_R-8));ctx.lineTo(bx+Math.cos(ta)*(JOY_R-3),by+Math.sin(ta)*(JOY_R-3));ctx.stroke();}
-  // home button — appears to right of joystick when panned
+  // home button — appears above joystick when panned
   if(hasPan){
-    var hx=bx+JOY_R*2+12,hy=by;
+    var hx=bx,hy=by-JOY_R-22;
     var hPulse=0.5+Math.sin(Date.now()*0.003)*0.3;
     ctx.fillStyle="rgba(180,220,255,"+(hPulse*0.18)+")";
     ctx.beginPath();ctx.arc(hx,hy,16,0,6.28);ctx.fill();

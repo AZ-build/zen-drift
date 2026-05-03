@@ -1973,7 +1973,7 @@ canvas.addEventListener("touchstart",onD,{passive:false});
 canvas.addEventListener("touchmove",onM,{passive:false});
 canvas.addEventListener("touchend",onU,{passive:false});
 canvas.addEventListener("mousedown",onD,false);
-canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling)onM(e);},false);
+canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling||joy.active||launcher.draggingHandle)onM(e);},false);
 canvas.addEventListener("mouseup",onU,false);
 canvas.addEventListener("wheel",function(e){
   e.preventDefault();

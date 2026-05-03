@@ -1442,39 +1442,35 @@ o.trail.push({x:o.x,y:o.y,c:_tCol});if(o.trail.length>TRAIL_LEN)o.trail.shift();
 
 function drawLeaderLine(o){
   if(o.dead||o.suctioning)return;
-  var tsx=sun.x-o.x,tsy=sun.y-o.y,tsd2=Math.sqrt(tsx*tsx+tsy*tsy);
-  var radVel=(tsd2>1)?(o.vx*(-tsx/tsd2)+o.vy*(-tsy/tsd2)):0;
-  // positive radVel = toward sun (red), negative = away (yellow), ~0 = stable (blue)
-  var state=radVel>0.06?'red':radVel<-0.06?'yellow':'blue';
-  var cfgs={
-    blue:  {col:[80,170,255], steps:120, lw:1.1},
-    yellow:{col:[230,210,60], steps:60,  lw:1.0},
-    red:   {col:[230,70,50],  steps:55,  lw:1.1}  // same length as yellow — always visible
-  };
-  var cfg=cfgs[state];
-  if(!o._leaderPts||_frameN%8===0||o._leaderState!==state){
+  // Rebuild simulation every 8 frames — detects if path actually hits the sun
+  if(!o._leaderPts||_frameN%8===0){
     var x=o.x,y=o.y,vx=o.vx,vy=o.vy;
     var pts=[{x:x,y:y}];
-    for(var i=0;i<cfg.steps;i++){
+    var hit=false;
+    for(var i=0;i<110;i++){
       for(var s=0;s<2;s++){
         var dx2=sun.x-x,dy2=sun.y-y,d2=Math.sqrt(dx2*dx2+dy2*dy2);
-        if(d2<sun.r+2){i=cfg.steps;break;}
+        if(d2<sun.r+2){hit=true;i=110;break;}
         var f2=getGM()/(d2*d2);
         vx+=dx2/d2*f2*16.67;vy+=dy2/d2*f2*16.67;
         x+=vx*16.67*TS;y+=vy*16.67*TS;
       }
-      pts.push({x:x,y:y});
+      if(!hit){pts.push({x:x,y:y});}
     }
-    o._leaderPts=pts; o._leaderState=state;
+    o._leaderPts=pts;
+    o._leaderHit=hit;
   }
+  // red only if simulation ends in sun; yellow if unstable; else blue
+  var state=o._leaderHit?'red':(o.instability>0.5?'yellow':'blue');
+  var cols={blue:[80,170,255],yellow:[230,210,60],red:[230,70,50]};
+  var c=cols[state];
   var pts=o._leaderPts;
   if(pts.length<2)return;
   var pulseMult=(state==='red')?(0.55+Math.sin(Date.now()*0.01)*0.45):1;
-  var c=cfg.col;
   var moonMult=o.isMoon?0.4:1;
 
   ctx.save();
-  ctx.lineWidth=cfg.lw;
+  ctx.lineWidth=0.9;
   ctx.lineCap="round";
   ctx.setLineDash([]);
 
@@ -1487,9 +1483,9 @@ function drawLeaderLine(o){
 
   // 3 opacity zones fading to invisible
   var zones=[
-    {from:0,   to:0.4,  alpha:0.75*pulseMult*moonMult},
-    {from:0.4, to:0.7,  alpha:0.4*pulseMult*moonMult},
-    {from:0.7, to:1.0,  alpha:0.15*pulseMult*moonMult}
+    {from:0,   to:0.4,  alpha:0.72*pulseMult*moonMult},
+    {from:0.4, to:0.7,  alpha:0.38*pulseMult*moonMult},
+    {from:0.7, to:1.0,  alpha:0.14*pulseMult*moonMult}
   ];
   for(var z=0;z<zones.length;z++){
     var zn=zones[z];
@@ -1500,7 +1496,7 @@ function drawLeaderLine(o){
     ctx.strokeStyle="rgba("+c[0]+","+c[1]+","+c[2]+",1)";
     ctx.beginPath();
     ctx.moveTo(pts[i0].x,pts[i0].y);
-    for(var i=i0+1;i<=i1;i++) ctx.lineTo(pts[i].x,pts[i].y);
+    for(var i=i0+1;i<=i1;i++){ctx.lineTo(pts[i].x,pts[i].y);}
     ctx.stroke();
   }
   ctx.globalAlpha=1;
@@ -1532,8 +1528,8 @@ function drawTrail(o){
     var midFrac=(run.from+run.to)*0.5/len;
     var a=midFrac*midFrac*(o.isMoon?0.5:0.85);
     if(a<0.01)continue;
-    ctx.strokeStyle="rgba("+~~c[0]+","+~~c[1]+","+~~c[2]+","+a+")";
-    ctx.lineWidth=o.isMoon?0.9:1.4; // constant width
+    ctx.strokeStyle="rgba(200,215,230,"+a+")";
+    ctx.lineWidth=o.isMoon?0.6:0.9;
     ctx.beginPath();
     // smooth curve through points using quadratic bezier midpoints
     var p0=tr[run.from];
@@ -2265,10 +2261,9 @@ function drawOffscreenIndicators(){
     py2=Math.max(margin,Math.min(H-margin,py2));
     // distance — scale indicator opacity with how far off screen
     var dist=Math.sqrt((o.x-W/2)*(o.x-W/2)+(o.y-H/2)*(o.y-H/2));
-    var alpha=Math.min(0.85,0.4+Math.min(1,(dist-Math.min(W,H)*0.5)/200)*0.45);
+    var alpha=Math.min(0.38,0.15+Math.min(1,(dist-Math.min(W,H)*0.5)/200)*0.23);
     var c=stabCol(o.instability);
-    var pulse=1; // pulse red orbs
-    if(o.instability>0.6) pulse=0.6+Math.sin(Date.now()*0.008)*0.4;
+    var pulse=1;
     ctx.save();ctx.translate(px2,py2);ctx.rotate(ang);
     // planet dot
     ctx.fillStyle=rgba(c,alpha*0.35*pulse);

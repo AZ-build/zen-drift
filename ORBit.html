@@ -1454,8 +1454,10 @@ var _canEnter=(_isClosed||o.eccSmooth<0.20)&&o.instability<0.35&&!o.suctioning;
 var _mustExit=o.eccSmooth>0.28&&!_isClosed||o.instability>0.50||o.suctioning;
 o.isCircular=o.isCircular?!_mustExit:_canEnter;
 if(o.isCircular&&!o._wasCircular){
-  worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
-  _taughtCircle=true;
+  if(!o._lastCircPop||time-o._lastCircPop>12000){
+    worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
+    o._lastCircPop=time;_taughtCircle=true;
+  }
 }
 o._wasCircular=o.isCircular;
 // circular soft boundary — tight push-back band near edge, invisible otherwise

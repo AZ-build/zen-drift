@@ -1437,7 +1437,9 @@ var _eEps=_ev2/2-_eGM/Math.max(_er,1);
 var _eH=_edx*o.vy-_edy*o.vx;
 var _ecc=(_eEps<0)?Math.sqrt(Math.max(0,1+2*_eEps*_eH*_eH/(_eGM*_eGM))):1;
 o.eccSmooth=o.eccSmooth===undefined?_ecc:o.eccSmooth*0.94+_ecc*0.06;
-o.isCircular=(o.eccSmooth<0.20&&o.instability<0.35&&!o.suctioning);
+var _canEnter=o.eccSmooth<0.20&&o.instability<0.35&&!o.suctioning;
+var _mustExit=o.eccSmooth>0.28||o.instability>0.50||o.suctioning;
+o.isCircular=o.isCircular?!_mustExit:_canEnter;
 if(o.isCircular&&!o._wasCircular){
   worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
   _taughtCircle=true;

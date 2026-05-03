@@ -1449,13 +1449,17 @@ if(_leC&&_t0C){
   var _odC=Math.sqrt((_leC.x-_t0C.x)*(_leC.x-_t0C.x)+(_leC.y-_t0C.y)*(_leC.y-_t0C.y));
   o.closeT=!o._leaderHit?Math.max(0,1-_odC/_threshC):0;
 } else {o.closeT=0;}
-var _isClosed=o.closeT>0.55;
-var _canEnter=(_isClosed||o.eccSmooth<0.20)&&o.instability<0.35&&!o.suctioning;
-var _mustExit=o.eccSmooth>0.28&&!_isClosed||o.instability>0.50||o.suctioning;
+// smooth closeT — visual only, does not drive isCircular
+o.closeTSmooth=o.closeTSmooth!==undefined?o.closeTSmooth*0.88+o.closeT*0.12:o.closeT;
+// isCircular: driven by eccentricity only — generous instability guard
+var _canEnter=o.eccSmooth<0.28&&o.instability<0.55&&!o.suctioning&&!o._leaderHit;
+var _mustExit=o.eccSmooth>0.38||o.instability>0.70||o.suctioning||o._leaderHit;
 o.isCircular=o.isCircular?!_mustExit:_canEnter;
 if(o.isCircular&&!o._wasCircular){
-  worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
-  _taughtCircle=true;
+  if(!o._lastCircPop||time-o._lastCircPop>12000){
+    worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
+    o._lastCircPop=time;_taughtCircle=true;
+  }
 }
 o._wasCircular=o.isCircular;
 // circular soft boundary — tight push-back band near edge, invisible otherwise
@@ -1528,7 +1532,7 @@ function drawLeaderLine(o){
 
   ctx.save();
   if(_nearCirc&&_circFrac>0.3){ctx.shadowColor="rgba(255,90,210,"+(_circFrac*0.4)+")";ctx.shadowBlur=6*_circFrac;}
-  ctx.lineWidth=0.9+_circFrac*0.5;
+  ctx.lineWidth=0.9;
   ctx.lineCap="round";
   ctx.setLineDash([]);
 
@@ -1569,28 +1573,30 @@ function drawTrail(o){
   var si=Math.max(0,len-visLen);
   var t0=tr[si];
   var closeT=o.closeT!==undefined?o.closeT:0;
-  var closed=closeT>0.55;
-  // colour blend: grey (ecc=1) → blue (ecc=0) → cyan (closure)
+  var isCirc=!!o.isCircular;
+  // colour: grey→blue as orbit rounds out; pink when circular (persistent); cyan glow at closure
   var blendT=Math.max(0,Math.min(1,(0.90-ecc)/0.90));
-  var _cr=~~(200-120*blendT);
-  var _cg=~~(215-45*blendT+closeT*60);
-  var _cb=~~(230+25*blendT);
-  var _lw=(o.isMoon?0.55:0.85)+blendT*0.5;
+  var _lw=o.isMoon?0.6:0.95;
   ctx.lineCap="round";ctx.lineJoin="round";
-  if(closed){
-    var _gp=(0.55+Math.sin(Date.now()*0.0045)*0.35)*closeT;
+  if(isCirc){
+    // persistent pink/lavender glow — orbit is locked and scoring
+    var _pp=0.45+Math.sin(Date.now()*0.003)*0.2;
     ctx.save();
-    ctx.shadowColor="rgba(100,230,255,0.55)";ctx.shadowBlur=9*closeT;
-    ctx.strokeStyle="rgba("+_cr+","+_cg+","+_cb+","+_gp+")";ctx.lineWidth=o.isMoon?0.9:1.7;
+    ctx.shadowColor="rgba(220,100,255,0.4)";ctx.shadowBlur=7;
     ctx.beginPath();ctx.moveTo(tr[si].x,tr[si].y);
     for(var i=si+1;i<len;i++){
       var p=tr[i];
+      var frac=(i-si)/(len-si);
       if(i<len-1){var pn=tr[i+1];ctx.quadraticCurveTo(p.x,p.y,(p.x+pn.x)*0.5,(p.y+pn.y)*0.5);}
       else{ctx.lineTo(p.x,p.y);}
     }
-    ctx.stroke();
+    ctx.strokeStyle="rgba(220,110,255,"+_pp+")";ctx.lineWidth=_lw+0.4;ctx.stroke();
     ctx.shadowBlur=0;ctx.restore();
   } else {
+    // grey → blue as ecc improves, nudge toward cyan as closure approaches
+    var _cr=~~(200-120*blendT);
+    var _cg=~~(215-45*blendT+closeT*55);
+    var _cb=~~(230+25*blendT);
     for(var i=si+1;i<len;i++){
       var frac=(i-si)/(len-si);
       var a=frac*frac*(o.isMoon?0.4:0.75);
@@ -1914,7 +1920,7 @@ function inHomeBtn(p){
   var jb=joyBase();
   var sx=p.sx!==undefined?p.sx:p.x;
   var sy=p.sy!==undefined?p.sy:p.y;
-  var hx=jb.bx+JOY_R*2+12,hy=jb.by;
+  var hx=jb.bx,hy=jb.by-JOY_R-22;
   return (Math.abs(camX)>8||Math.abs(camY)>8)&&Math.sqrt((sx-hx)*(sx-hx)+(sy-hy)*(sy-hy))<20;
 }
 function _pinchDist(e){
@@ -2155,18 +2161,6 @@ function drawScore(t){
     }
     if(popAlpha<=0){scorePop=0;scorePopY=0;scorePopMult=1;}
   }
-  // --- CIRCULAR ORBIT MULTIPLIER BADGE (shown live when active) ---
-  var _liveCirc=circularOrbCount();
-  if(_liveCirc>0){
-    var _lm=_liveCirc*10;
-    var _badgePulse=0.7+Math.sin(Date.now()*0.003)*0.3;
-    ctx.font="bold 13px system-ui,sans-serif";
-    ctx.textAlign="left";ctx.textBaseline="middle";
-    ctx.fillStyle="rgba(200,80,255,"+_badgePulse+")";
-    ctx.shadowColor="rgba(200,80,255,0.6)";ctx.shadowBlur=8;
-    ctx.fillText("\xd7"+_lm+" perfect",px,py+16);
-    ctx.shadowBlur=0;
-  }
 
   // --- PROGRESS BAR ---
   var barX=px,barY=py+38,barW=110,barH=4;
@@ -2271,6 +2265,18 @@ function drawScore(t){
       ctx.beginPath();ctx.arc(bIconX,rowBy,ICON_R,0,6.28);ctx.fill();
       ctx.fillStyle="rgba(255,110,70,0.45)";
       ctx.beginPath();ctx.arc(bIconX,rowBy,1.5,0,6.28);ctx.fill();
+    }
+    // ×N multiplier badge — right of orbit counter
+    var _liveCirc2=circularOrbCount();
+    if(_liveCirc2>0){
+      var _lm2=_liveCirc2*10;
+      var _bp2=0.7+Math.sin(Date.now()*0.003)*0.3;
+      var _mx2=bIconX+ICON_R+10;
+      ctx.font="bold 11px system-ui,sans-serif";ctx.textBaseline="middle";ctx.textAlign="left";
+      ctx.fillStyle="rgba(200,80,255,"+_bp2+")";
+      ctx.shadowColor="rgba(200,80,255,0.55)";ctx.shadowBlur=6;
+      ctx.fillText("\xd7"+_lm2,_mx2,rowAy);
+      ctx.shadowBlur=0;ctx.shadowColor="transparent";
     }
   }
 
@@ -2403,9 +2409,9 @@ function drawJoystick(){
   // compass ticks (N/S/E/W hints)
   ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.5+")";ctx.lineWidth=0.8;
   for(var ti=0;ti<4;ti++){var ta=ti*1.571;ctx.beginPath();ctx.moveTo(bx+Math.cos(ta)*(JOY_R-8),by+Math.sin(ta)*(JOY_R-8));ctx.lineTo(bx+Math.cos(ta)*(JOY_R-3),by+Math.sin(ta)*(JOY_R-3));ctx.stroke();}
-  // home button — appears to right of joystick when panned
+  // home button — appears above joystick when panned
   if(hasPan){
-    var hx=bx+JOY_R*2+12,hy=by;
+    var hx=bx,hy=by-JOY_R-22;
     var hPulse=0.5+Math.sin(Date.now()*0.003)*0.3;
     ctx.fillStyle="rgba(180,220,255,"+(hPulse*0.18)+")";
     ctx.beginPath();ctx.arc(hx,hy,16,0,6.28);ctx.fill();

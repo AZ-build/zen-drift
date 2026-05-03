@@ -429,24 +429,24 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
   <div id="tab-howto" class="tab-content">
     <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">Launch planets into orbit around the sun. Good orbits score points — but <strong style="color:rgba(210,100,255,0.95);">perfect circles score ×10, and they stack.</strong> Two circles = ×20. Three = ×30. That's where massive scores come from. The sun grows each time it absorbs a planet — fill its mass bar and it collapses into a black hole. Everything follows one rule: mass attracts mass.</p>
     <div class="how-section">
-      <h3>Controls</h3>
-      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. The trajectory line shows where it will go. Use the handle on the right edge to slide the launcher closer or further from the sun — closer means faster orbits. Each planet takes longer to load. You have 10 seconds to launch before it auto-fires toward the sun.</p></div></div>
-      <div class="how-card"><div class="how-icon">🔍</div><div><h4>Zoom</h4><p>Pinch with two fingers to zoom in or out. Zoom out to see planets that have drifted off-screen. Double-tap to reset zoom.</p></div></div>
-      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a channel that planets will follow. A light swipe nudges gently — a long hold can catch a fast-moving planet.</p></div></div>
-      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
-      <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Watch the ☀ mass bar in the score panel. When it fills, the sun collapses into a black hole and devours every planet on the map — each one still costs −10. That's game over.</p></div></div>
-      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>The leader line ahead of each planet shows its path. <span style="color:#5599ff;">Blue</span> = stable orbit. <span style="color:#ff88dd;">Pink</span> = almost a perfect circle — don't disturb it! <span style="color:#ddcc30;">Yellow</span> = drifting. <span style="color:#e04030;">Red</span> = falling into the sun. The grey trail behind each planet grows longer as the orbit rounds out — when it glows <span style="color:#88eeff;">cyan</span>, the orbit has closed into a perfect loop.</p></div></div>
-      <div class="how-card"><div class="how-icon">○</div><div><h4>Perfect circles</h4><p>A circular orbit scores <strong style="color:rgba(210,80,255,0.95);">×10</strong> — and they stack. Two perfect circles = ×20 on every score tick. Three = ×30. Use the gravity well to gently nudge an orbit rounder without breaking it. Watch for the pink leader line — that's your signal you're close.</p></div></div>
-    </div>
-    <div class="how-section">
       <h3>Scoring</h3>
       <div class="score-pills">
-        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">blue stable planets per bar fill</div></div>
+        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">stable planets score per bar fill</div></div>
         <div class="score-pill"><div class="val" style="color:#dd55ff;">×10</div><div class="lbl">per perfect circle — stacks!</div></div>
         <div class="score-pill"><div class="val" style="color:#22cc88;">faster</div><div class="lbl">more planets = bar fills faster</div></div>
-        <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">minimum planets to start scoring</div></div>
-        <div class="score-pill"><div class="val" style="color:#ff5555;">−10</div><div class="lbl">flat penalty per planet absorbed</div></div>
+        <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">need 3 planets to start scoring</div></div>
+        <div class="score-pill"><div class="val" style="color:#ff5555;">−10</div><div class="lbl">per planet the sun absorbs</div></div>
       </div>
+    </div>
+    <div class="how-section">
+      <h3>Controls</h3>
+      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. The trajectory line shows where it will go. Use the handle on the right edge to slide the launcher up or down — closer to the sun means faster, tighter orbits. You have 10 seconds to launch before it auto-fires toward the sun.</p></div></div>
+      <div class="how-card"><div class="how-icon">🕹️</div><div><h4>Pan</h4><p>Use the joystick in the bottom-left corner to pan the camera around the solar system. Tap the home button that appears beside it to snap back to center.</p></div></div>
+      <div class="how-card"><div class="how-icon">🔍</div><div><h4>Zoom</h4><p>Pinch with two fingers to zoom in or out. Zoom out to see planets that have drifted off-screen. Double-tap to reset zoom.</p></div></div>
+      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a path planets will follow. A brief hold nudges gently — great for coaxing an orbit rounder.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>The leader line ahead of each planet shows its future path. <span style="color:#5599ff;">Blue</span> = stable orbit. <span style="color:#ff88dd;">Pink</span> = nearly a perfect circle — don't disturb it! <span style="color:#ddcc30;">Yellow</span> = drifting. <span style="color:#e04030;">Red</span> = falling into the sun, act fast. The trail behind each planet turns from grey to blue as the orbit rounds out. When it glows <span style="color:#88eeff;">cyan</span> and connects to the leader line, the orbit is locked and scoring ×10.</p></div></div>
+      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
+      <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Watch the sun mass bar in the score panel. When it fills, the sun collapses into a black hole and devours every planet — each one costs −10. That's game over.</p></div></div>
     </div>
     <div class="how-section">
       <h3>Tips</h3>

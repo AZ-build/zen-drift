@@ -1436,8 +1436,8 @@ var _ev2=o.vx*o.vx+o.vy*o.vy,_eGM=getGM();
 var _eEps=_ev2/2-_eGM/Math.max(_er,1);
 var _eH=_edx*o.vy-_edy*o.vx;
 var _ecc=(_eEps<0)?Math.sqrt(Math.max(0,1+2*_eEps*_eH*_eH/(_eGM*_eGM))):1;
-o.eccSmooth=o.eccSmooth===undefined?_ecc:o.eccSmooth*0.97+_ecc*0.03;
-o.isCircular=(o.eccSmooth<0.12&&o.instability<0.35&&!o.suctioning);
+o.eccSmooth=o.eccSmooth===undefined?_ecc:o.eccSmooth*0.94+_ecc*0.06;
+o.isCircular=(o.eccSmooth<0.20&&o.instability<0.35&&!o.suctioning);
 if(o.isCircular&&!o._wasCircular){
   worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
   _taughtCircle=true;
@@ -1500,8 +1500,8 @@ function drawLeaderLine(o){
     return;
   }
   // color: red=hitting sun, yellow=unstable, pink=near-perfect circle, blue=normal
-  var _nearCirc=!o._leaderHit&&o.eccSmooth<0.22&&o.instability<0.45;
-  var _circFrac=_nearCirc?Math.max(0,1-o.eccSmooth/0.22):0;
+  var _nearCirc=!o._leaderHit&&o.eccSmooth<0.32&&o.instability<0.45;
+  var _circFrac=_nearCirc?Math.max(0,1-o.eccSmooth/0.32):0;
   var state=o._leaderHit?'red':(o.instability>0.5?'yellow':(_nearCirc?'pink':'blue'));
   var cols={blue:[80,170,255],yellow:[230,210,60],red:[230,70,50]};
   var c=_nearCirc?l3([80,170,255],[255,90,210],_circFrac):cols[state];
@@ -1562,7 +1562,7 @@ function drawTrail(o){
   var closeT=(!o._leaderHit&&_le)?Math.max(0,1-_od/_thresh):0;
   var closed=closeT>0.65;
   // colour blend: grey (ecc=1) → blue (ecc=0) → cyan (closure)
-  var blendT=Math.max(0,Math.min(1,(0.65-ecc)/0.65));
+  var blendT=Math.max(0,Math.min(1,(0.90-ecc)/0.90));
   var _cr=~~(200-120*blendT);
   var _cg=~~(215-45*blendT+closeT*60);
   var _cb=~~(230+25*blendT);

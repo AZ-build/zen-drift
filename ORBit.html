@@ -1540,7 +1540,7 @@ function drawTrail(o){
   if(o.dead||o.trail.length<4)return;
   var tr=o.trail,len=tr.length;
   var ecc=o.eccSmooth!==undefined?o.eccSmooth:1;
-  var visLen=Math.max(6,Math.floor(TRAIL_LEN*(1-Math.min(1,ecc*1.6))));
+  var visLen=Math.max(25,Math.floor(TRAIL_LEN*(1-Math.min(1,ecc*1.1))));
   var si=Math.max(0,len-visLen);
   var t0=tr[si];
   var ld=Math.sqrt((t0.x-o.x)*(t0.x-o.x)+(t0.y-o.y)*(t0.y-o.y));

@@ -1490,32 +1490,34 @@ function drawLeaderLine(o){
     ctx.restore();
     return;
   }
-  // red only if simulation ends in sun; yellow if unstable; else blue
-  var state=o._leaderHit?'red':(o.instability>0.5?'yellow':'blue');
+  // color: red=hitting sun, yellow=unstable, pink=near-perfect circle, blue=normal
+  var _nearCirc=!o._leaderHit&&o.eccSmooth<0.22&&o.instability<0.45;
+  var _circFrac=_nearCirc?Math.max(0,1-o.eccSmooth/0.22):0;
+  var state=o._leaderHit?'red':(o.instability>0.5?'yellow':(_nearCirc?'pink':'blue'));
   var cols={blue:[80,170,255],yellow:[230,210,60],red:[230,70,50]};
-  var c=cols[state];
+  var c=_nearCirc?l3([80,170,255],[255,90,210],_circFrac):cols[state];
   var pts=o._leaderPts;
   if(pts.length<2)return;
   var pulseMult=(state==='red')?(0.55+Math.sin(Date.now()*0.01)*0.45):1;
+  var pinkPulse=_nearCirc?(0.85+Math.sin(Date.now()*0.003)*0.15):1;
   var moonMult=o.isMoon?0.4:1;
 
   ctx.save();
-  ctx.lineWidth=0.9;
+  if(_nearCirc&&_circFrac>0.3){ctx.shadowColor="rgba(255,90,210,"+(_circFrac*0.4)+")";ctx.shadowBlur=6*_circFrac;}
+  ctx.lineWidth=0.9+_circFrac*0.5;
   ctx.lineCap="round";
   ctx.setLineDash([]);
 
-  // find first point outside the planet radius so line starts at planet edge
   var startIdx=0;
   for(var i=1;i<pts.length;i++){
     var ex=pts[i].x-o.x,ey=pts[i].y-o.y;
     if(ex*ex+ey*ey>o.baseR*o.baseR*1.1){startIdx=i;break;}
   }
 
-  // 3 opacity zones fading to invisible
   var zones=[
-    {from:0,   to:0.4,  alpha:0.72*pulseMult*moonMult},
-    {from:0.4, to:0.7,  alpha:0.38*pulseMult*moonMult},
-    {from:0.7, to:1.0,  alpha:0.14*pulseMult*moonMult}
+    {from:0,   to:0.4,  alpha:0.72*pulseMult*pinkPulse*moonMult},
+    {from:0.4, to:0.7,  alpha:0.38*pulseMult*pinkPulse*moonMult},
+    {from:0.7, to:1.0,  alpha:0.14*pulseMult*pinkPulse*moonMult}
   ];
   for(var z=0;z<zones.length;z++){
     var zn=zones[z];
@@ -1530,6 +1532,7 @@ function drawLeaderLine(o){
     ctx.stroke();
   }
   ctx.globalAlpha=1;
+  ctx.shadowBlur=0;
   ctx.restore();
 }
 

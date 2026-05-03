@@ -506,6 +506,8 @@ var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
 var W=0,H=0,TS=0.05,GM=4.0; // base value
 var zoom=1.0,zoomTarget=1.0,_pinchDist0=0,_pinching=false;
 var scrShake={mag:0,x:0,y:0};
+var camX=0,camY=0,camHoming=false;
+var joy={active:false,bx:0,by:0,dx:0,dy:0,ltap:0};
 function getGM(){
   if(!sun||sun.mass===0)return GM;
   var mp=sun.mass/sun.maxMass;
@@ -1087,6 +1089,7 @@ function getRandPType(){
 var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0,draggingHandle:false};
 var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=1.0;
 var PLATFORM_R=22; // full circle platform radius
+var JOY_R=40,JOY_PAN=0.42,CAM_MAX=650; // joystick pan constants
 function queueNext(){
   launcher.nextR=6+Math.floor(Math.random()*16);
   launcher.nextPT=Math.floor(Math.random()*PTYPES.length);
@@ -1132,8 +1135,8 @@ function simulateTraj(sx,sy,vx,vy,steps){
 
 function drawLauncherHandle(lx,ly){
   var trackX=W-24;
-  var trackTop=sun.y+sun.r+50;
-  var trackBot=H-30;
+  var trackTop=80;
+  var trackBot=H-80;
   var handleY=launcher.y;
   // track line
   ctx.strokeStyle="rgba(180,220,255,0.14)";ctx.lineWidth=1;
@@ -1851,9 +1854,9 @@ var dragN=0;
 function gXY(e){
   var t=e.touches?e.touches[0]:e;
   var sx=t.clientX,sy=t.clientY;
-  // convert screen coords to world coords (pivot is W/2,H/2)
-  var wx=(sx-W/2)/zoom+W/2;
-  var wy=(sy-H/2)/zoom+H/2;
+  // convert screen coords to world coords (accounts for zoom + pan)
+  var wx=(sx-W/2+camX)/zoom+W/2;
+  var wy=(sy-H/2+camY)/zoom+H/2;
   return{x:wx,y:wy,sx:sx,sy:sy};
 }
 function inLZ(p){
@@ -1873,26 +1876,40 @@ function inMenuZone(p){
   var sy=p.sy!==undefined?p.sy:p.y;
   return sx>=W-56&&sy>=48&&sy<=82;
 }
+function joyBase(){return{bx:JOY_R+20,by:H-JOY_R-20};}
+function inJoyZone(p){
+  var jb=joyBase();
+  var sx=p.sx!==undefined?p.sx:p.x;
+  var sy=p.sy!==undefined?p.sy:p.y;
+  return Math.sqrt((sx-jb.bx)*(sx-jb.bx)+(sy-jb.by)*(sy-jb.by))<JOY_R+22;
+}
+function inHomeBtn(p){
+  var sx=p.sx!==undefined?p.sx:p.x;
+  var sy=p.sy!==undefined?p.sy:p.y;
+  var hx=JOY_R*2+52,hy=H-JOY_R-20;
+  return (Math.abs(camX)>8||Math.abs(camY)>8)&&Math.sqrt((sx-hx)*(sx-hx)+(sy-hy)*(sy-hy))<20;
+}
 function _pinchDist(e){
   var dx=e.touches[0].clientX-e.touches[1].clientX;
   var dy=e.touches[0].clientY-e.touches[1].clientY;
   return Math.sqrt(dx*dx+dy*dy);
 }
 function onD(e){e.preventDefault();
-  // 2 fingers = pinch zoom
+  // 2 fingers = pinch zoom — cancel joystick too
   if(e.touches&&e.touches.length===2){
     _pinching=true;_pinchDist0=_pinchDist(e);
-    // cancel any single-touch gesture
     well.active=false;well.trail=[];launcher.pulling=false;launcher.draggingHandle=false;
+    joy.active=false;joy.dx=0;joy.dy=0;
     return;
   }
   _pinching=false;
   var p=gXY(e);
-  // use screen coords for UI zones (not zoomed)
   var ps={x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY};
   if(inMenuZone(ps)){showMenu();return;}
   if(inHandle(ps)){launcher.draggingHandle=true;return;}
-  if(inLZ(ps)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;zoomTarget=1.0;} // snap back to default zoom
+  if(inHomeBtn(ps)){camHoming=true;return;}
+  if(inJoyZone(ps)&&!launcher.pulling){joy.active=true;joy.bx=ps.x;joy.by=ps.y;joy.dx=0;joy.dy=0;camHoming=false;return;}
+  if(inLZ(ps)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}
   else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}
 }
 function onM(e){e.preventDefault();
@@ -1911,10 +1928,9 @@ zoomTarget=Math.max(0.55,Math.min(1.8,newZoom));
   if(_pinching)return;
   var p=gXY(e);
   var ps={x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY};
+  if(joy.active){var jb=joyBase();var jdx=ps.x-jb.bx,jdy=ps.y-jb.by;var jdist=Math.sqrt(jdx*jdx+jdy*jdy);if(jdist>JOY_R){jdx=jdx/jdist*JOY_R;jdy=jdy/jdist*JOY_R;}joy.dx=jdx;joy.dy=jdy;return;}
   if(launcher.draggingHandle){
-    var trackTop=(sun.y+sun.r+50-H/2)/zoom+H/2;
-    var trackBot=(H-30-H/2)/zoom+H/2;
-    launcher.y=Math.max(sun.y+sun.r+50,Math.min(H-30,p.y));
+    launcher.y=Math.max(80,Math.min(H-80,ps.y));
     launcher.x=W/2;
     return;
   }
@@ -1930,16 +1946,23 @@ zoomTarget=Math.max(0.55,Math.min(1.8,newZoom));
 function onU(e){e.preventDefault();
   var wasPinching=_pinching;
   if(e.touches&&e.touches.length===1){
-    // one finger still down after pinch — just cancel pinch, don't fire gestures
     if(wasPinching){_pinching=false;return;}
   }
-  if(e.touches&&e.touches.length>0)return; // still touching
+  if(e.touches&&e.touches.length>0)return;
   _pinching=false;
+  // release joystick — double-tap on joy zone = home
+  if(joy.active){
+    var now2=Date.now();
+    if(now2-joy.ltap<320){camHoming=true;}
+    joy.ltap=now2;
+    joy.active=false;joy.dx=0;joy.dy=0;
+    return;
+  }
   if(launcher.draggingHandle){launcher.draggingHandle=false;return;}
   if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}
   if(well.active){disturb(well.x,well.y,0.8);}
   well.active=false;well.trail=[];dragN=0;
-  // double-tap to reset zoom — only if wasn't a pinch
+  // double-tap anywhere else = reset zoom
   if(!wasPinching&&e.changedTouches&&e.changedTouches.length===1){
     var now=Date.now();
     if(now-_lastTap<320){zoomTarget=1.0;}
@@ -1968,6 +1991,7 @@ document.addEventListener("visibilitychange",function(){
     // clear ALL touch state so no ghost touches on return
     well.active=false;well.depth=0;well.holdTime=0;well.trail=[];
     launcher.pulling=false;launcher.draggingHandle=false;
+    joy.active=false;joy.dx=0;joy.dy=0;
     dragN=0;
     // show menu
     var mo=document.getElementById('menu-overlay');
@@ -2327,6 +2351,44 @@ function drawOffscreenIndicators(){
   }
 }
 
+function drawJoystick(){
+  var jb=joyBase();
+  var bx=jb.bx,by=jb.by;
+  var hasPan=Math.abs(camX)>8||Math.abs(camY)>8;
+  var baseAlpha=joy.active?0.55:0.18;
+  ctx.save();
+  // outer ring
+  ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.7+")";ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(bx,by,JOY_R,0,6.28);ctx.stroke();
+  // inner ring
+  ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.35+")";ctx.lineWidth=0.7;
+  ctx.beginPath();ctx.arc(bx,by,JOY_R*0.45,0,6.28);ctx.stroke();
+  // stick nub — follows finger, or rests at center
+  var nx=bx+joy.dx,ny=by+joy.dy;
+  var nAlpha=joy.active?0.75:0.3;
+  ctx.fillStyle="rgba(180,220,255,"+nAlpha+")";
+  ctx.beginPath();ctx.arc(nx,ny,9,0,6.28);ctx.fill();
+  ctx.strokeStyle="rgba(180,220,255,"+(nAlpha*0.6)+")";ctx.lineWidth=0.8;
+  ctx.beginPath();ctx.arc(nx,ny,9,0,6.28);ctx.stroke();
+  // compass ticks (N/S/E/W hints)
+  ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.5+")";ctx.lineWidth=0.8;
+  for(var ti=0;ti<4;ti++){var ta=ti*1.571;ctx.beginPath();ctx.moveTo(bx+Math.cos(ta)*(JOY_R-8),by+Math.sin(ta)*(JOY_R-8));ctx.lineTo(bx+Math.cos(ta)*(JOY_R-3),by+Math.sin(ta)*(JOY_R-3));ctx.stroke();}
+  // home button — appears to right of joystick when panned
+  if(hasPan){
+    var hx=bx+JOY_R*2+12,hy=by;
+    var hPulse=0.5+Math.sin(Date.now()*0.003)*0.3;
+    ctx.fillStyle="rgba(180,220,255,"+(hPulse*0.18)+")";
+    ctx.beginPath();ctx.arc(hx,hy,16,0,6.28);ctx.fill();
+    ctx.strokeStyle="rgba(180,220,255,"+(hPulse*0.65)+")";ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(hx,hy,16,0,6.28);ctx.stroke();
+    // dot = "you are here" / home icon
+    ctx.fillStyle="rgba(180,220,255,"+(hPulse*0.8)+")";
+    ctx.beginPath();ctx.arc(hx,hy,3.5,0,6.28);ctx.fill();
+    ctx.strokeStyle="rgba(180,220,255,"+(hPulse*0.5)+")";ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.arc(hx,hy,8,0,6.28);ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawVignette(){
   // soft darkening toward screen edges — sense of boundary without a hard line
   var vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
@@ -2592,6 +2654,7 @@ function resetGame(){
   score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];orbsEaten=0;
   orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
   well.active=false;well.depth=0;well.holdTime=0;well.trail=[];launcher.pulling=false;launcher.cooldown=0;launcher.launchNum=0;launcher.launchWindow=0;
+  camX=0;camY=0;camHoming=false;joy.active=false;joy.dx=0;joy.dy=0;
   sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;
   sun.homeX=W/2;sun.homeY=H/2;
   sun.r=SUN_BASE_R;sun.mass=0;
@@ -2604,11 +2667,13 @@ function resetGame(){
 }
 function startGame(chill){
   chillMode=!!chill;
-  // update chill indicator if button still exists
   var btn=document.getElementById('chill-btn');
   if(btn){btn.textContent=chillMode?'🌊  Chill mode: On':'🌊  Chill mode: Off';}
   document.getElementById('intro-overlay').style.display='none';
   paused=false;lastT=0;
+  // zoom intro — starts close, backs out to show players zoom exists
+  zoom=1.65;zoomTarget=1.0;
+  camX=0;camY=0;camHoming=false;joy.active=false;joy.dx=0;joy.dy=0;
   _sessionStart=Date.now();
   fbLog('game_start',{chill:chillMode});
 }
@@ -2702,9 +2767,12 @@ drawNebula(time);drawGalaxies(time);drawStars(time);
 
 // ── SCREEN SHAKE ──
 if(scrShake.mag>0.1){scrShake.mag*=0.75;scrShake.x=(Math.random()-0.5)*scrShake.mag*2;scrShake.y=(Math.random()-0.5)*scrShake.mag*2;}else{scrShake.mag=0;scrShake.x=0;scrShake.y=0;}
-// ── GAME WORLD (zoomed) ──
+// ── PAN UPDATE ──
+if(camHoming){camX*=0.84;camY*=0.84;if(Math.abs(camX)<0.5&&Math.abs(camY)<0.5){camX=0;camY=0;camHoming=false;}}
+else if(joy.active){camX+=joy.dx/JOY_R*JOY_PAN*dt;camY+=joy.dy/JOY_R*JOY_PAN*dt;camX=Math.max(-CAM_MAX,Math.min(CAM_MAX,camX));camY=Math.max(-CAM_MAX,Math.min(CAM_MAX,camY));}
+// ── GAME WORLD (zoomed + panned) ──
 ctx.save();
-ctx.translate(W/2+scrShake.x,H/2+scrShake.y);
+ctx.translate(W/2-~~camX+scrShake.x,H/2-~~camY+scrShake.y);
 ctx.scale(zoom,zoom);
 ctx.translate(-W/2,-H/2);
 stepW();drawGrid(time);updateSun(dt);drawSun(time);
@@ -2719,6 +2787,7 @@ ctx.restore(); // ── END GAME WORLD ──
 
 // ── UI (fixed, not zoomed) ──
 drawVignette();
+drawJoystick();
 drawLauncherIdleHint();
 if(!blackHole.active&&!blackHole.done){drawLauncher(time);}
 drawLauncherHandle(launcher.x,launcher.y);

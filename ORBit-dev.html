@@ -1880,7 +1880,7 @@ function inMenuZone(p){
   var sy=p.sy!==undefined?p.sy:p.y;
   return sx>=W-56&&sy>=48&&sy<=82;
 }
-function joyBase(){return{bx:JOY_R+20,by:H-JOY_R-20};}
+function joyBase(){return{bx:JOY_R+20,by:H-JOY_R-80};}
 function inJoyZone(p){
   var jb=joyBase();
   var sx=p.sx!==undefined?p.sx:p.x;
@@ -1888,9 +1888,10 @@ function inJoyZone(p){
   return Math.sqrt((sx-jb.bx)*(sx-jb.bx)+(sy-jb.by)*(sy-jb.by))<JOY_R+22;
 }
 function inHomeBtn(p){
+  var jb=joyBase();
   var sx=p.sx!==undefined?p.sx:p.x;
   var sy=p.sy!==undefined?p.sy:p.y;
-  var hx=JOY_R*2+52,hy=H-JOY_R-20;
+  var hx=jb.bx+JOY_R*2+12,hy=jb.by;
   return (Math.abs(camX)>8||Math.abs(camY)>8)&&Math.sqrt((sx-hx)*(sx-hx)+(sy-hy)*(sy-hy))<20;
 }
 function _pinchDist(e){

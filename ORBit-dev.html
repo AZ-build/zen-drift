@@ -1094,7 +1094,8 @@ function getRandPType(){
 var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0,draggingHandle:false};
 var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=1.0;
 var PLATFORM_R=22; // full circle platform radius
-var JOY_R=40,JOY_PAN=0.42,CAM_MAX=650; // joystick pan constants
+var JOY_R=40,JOY_PAN=0.42,BND_R=700; // BND_R = world boundary ring radius
+var CAM_MAX_X=500,CAM_MAX_Y=500; // computed in resize()
 function queueNext(){
   launcher.nextR=6+Math.floor(Math.random()*16);
   launcher.nextPT=Math.floor(Math.random()*PTYPES.length);
@@ -2017,7 +2018,7 @@ canvas.addEventListener("wheel",function(e){
 // double-tap handled inside onU to avoid dual-listener conflicts
 var _lastTap=0;
 
-function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
+function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";CAM_MAX_X=Math.max(120,BND_R-W/2+100);CAM_MAX_Y=Math.max(120,BND_R-H/2+100);initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){
@@ -2805,13 +2806,25 @@ drawNebula(time);drawGalaxies(time);drawStars(time);
 if(scrShake.mag>0.1){scrShake.mag*=0.75;scrShake.x=(Math.random()-0.5)*scrShake.mag*2;scrShake.y=(Math.random()-0.5)*scrShake.mag*2;}else{scrShake.mag=0;scrShake.x=0;scrShake.y=0;}
 // ── PAN UPDATE ──
 if(camHoming){camX*=0.84;camY*=0.84;if(Math.abs(camX)<0.5&&Math.abs(camY)<0.5){camX=0;camY=0;camHoming=false;}}
-else if(joy.active){camX+=joy.dx/JOY_R*JOY_PAN*dt;camY+=joy.dy/JOY_R*JOY_PAN*dt;camX=Math.max(-CAM_MAX,Math.min(CAM_MAX,camX));camY=Math.max(-CAM_MAX,Math.min(CAM_MAX,camY));}
+else if(joy.active){camX+=joy.dx/JOY_R*JOY_PAN*dt;camY+=joy.dy/JOY_R*JOY_PAN*dt;camX=Math.max(-CAM_MAX_X,Math.min(CAM_MAX_X,camX));camY=Math.max(-CAM_MAX_Y,Math.min(CAM_MAX_Y,camY));}
 // ── GAME WORLD (zoomed + panned) ──
 ctx.save();
 ctx.translate(W/2-~~camX+scrShake.x,H/2-~~camY+scrShake.y);
 ctx.scale(zoom,zoom);
 ctx.translate(-W/2,-H/2);
-stepW();drawGrid(time);updateSun(dt);drawSun(time);
+stepW();drawGrid(time);
+var _bndFx=Math.abs(camX)/CAM_MAX_X,_bndFy=Math.abs(camY)/CAM_MAX_Y;
+var _bndA=Math.max(0,Math.max(_bndFx,_bndFy)-0.25)/0.75*0.55;
+if(_bndA>0.01){
+  ctx.save();
+  ctx.strokeStyle="rgba(255,70,70,"+_bndA+")";
+  ctx.lineWidth=1.8;
+  ctx.setLineDash([14,9]);
+  ctx.beginPath();ctx.arc(W/2,H/2,BND_R,0,6.2832);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+updateSun(dt);drawSun(time);
 for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);
 for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}
 updateScore(dt);applyPuck();applyG();collide();

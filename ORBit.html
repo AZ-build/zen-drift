@@ -66,7 +66,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
 .tab-btn.active{color:rgba(255,255,255,0.85);border-bottom:2px solid rgba(100,200,255,0.6);}
 .tab-content{flex:1;overflow-y:auto;padding:20px 18px;display:none;-webkit-overflow-scrolling:touch;}
 .tab-content.active{display:block;}
-.menu-action{display:block;width:100%;margin-bottom:8px;padding:13px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:12px;color:rgba(255,255,255,0.85);font-size:15px;font-family:inherit;cursor:pointer;text-align:left;transition:background 0.15s;}
+.menu-action{display:block;width:100%;margin-bottom:12px;padding:17px 18px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:14px;color:rgba(255,255,255,0.85);font-size:16px;font-family:inherit;cursor:pointer;text-align:left;transition:background 0.15s;}
 .menu-action:hover{background:rgba(255,255,255,0.1);}
 .menu-action.danger{color:rgba(255,130,100,0.85);}
 .how-section{margin-bottom:22px;}
@@ -403,9 +403,8 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
   </div>
   <div class="tab-bar">
     <button class="tab-btn active" onclick="showTab('game')">game</button>
-    <button class="tab-btn" onclick="showTab('howto')">how to play</button>
+    <button class="tab-btn" onclick="showTab('howto')">tips</button>
     <button class="tab-btn" onclick="showTab('scores')">scores</button>
-    <button class="tab-btn" onclick="showTab('install')">install</button>
   </div>
   <!-- GAME TAB -->
   <div id="tab-game" class="tab-content active">
@@ -425,18 +424,8 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
         <polyline points="14,1 15,4 18,3" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>Reset game
     </button>
-    <div style="height:1px;background:rgba(255,255,255,0.06);margin:16px 0;"></div>
-    <div style="margin:16px 0 20px;padding:14px 16px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(100,200,255,0.2);border-radius:0 8px 8px 0;">
-      <p style="font-size:13px;color:rgba(255,255,255,0.55);line-height:1.6;margin:0;font-style:italic;">"I was sick and dying and Orbit saved my life."</p>
-      <p style="font-size:11px;color:rgba(255,255,255,0.25);margin:6px 0 0;letter-spacing:0.5px;">— Evan Brammer</p>
-    </div>
-    <div style="height:1px;background:rgba(255,255,255,0.06);margin:0 0 16px;"></div>
-    <div style="font-size:12px;color:rgba(255,255,255,0.2);letter-spacing:3px;text-transform:lowercase;margin-bottom:10px;">coming soon</div>
-    <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🔊  Sound</button>
-    <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">🎨  Themes</button>
-    <button class="menu-action" style="color:rgba(255,255,255,0.2);cursor:default;">⚙️  Settings</button>
   </div>
-  <!-- HOW TO PLAY TAB -->
+  <!-- TIPS TAB -->
   <div id="tab-howto" class="tab-content">
     <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">Launch planets into orbit around the sun. Blue orbits score points. The sun grows each time it absorbs a planet — fill its mass bar and it collapses into a black hole. Everything follows one rule: mass attracts mass.</p>
     <div class="how-section">
@@ -446,7 +435,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
       <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a channel that planets will follow. A light swipe nudges gently — a long hold can catch a fast-moving planet.</p></div></div>
       <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
       <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Watch the ☀ mass bar in the score panel. When it fills, the sun collapses into a black hole and devours every planet on the map — each one still costs −10. That's game over.</p></div></div>
-      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>Each planet's trail and leader line shows its orbit state. <span style="color:#5599ff;">Blue</span> = stable, scoring orbit. <span style="color:#ddcc30;">Yellow</span> = drifting away from sun. <span style="color:#e04030;">Red</span> = falling in — act fast. Only blue orbits add to your score.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>Each planet's trail and leader line shows its orbit state. <span style="color:#5599ff;">Blue</span> = stable, scoring orbit. <span style="color:#ddcc30;">Yellow</span> = drifting. <span style="color:#e04030;">Red + flashing</span> = falling into the sun — act fast. Only blue orbits score.</p></div></div>
     </div>
     <div class="how-section">
       <h3>Scoring</h3>
@@ -466,6 +455,32 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
       <div class="tip-row"><div class="tip-dot"></div><span>When the mass bar glows red, the black hole is close — end your game and save your score before it's too late.</span></div>
       <div class="tip-row"><div class="tip-dot"></div><span>In Chill mode there's no cooldown, no scoring, and no black hole. Pure physics.</span></div>
     </div>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:24px 0 20px;"></div>
+    <div class="how-section">
+      <h3>Install</h3>
+      <p style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:16px;">Add ORBit to your home screen for a full-screen experience with no browser chrome.</p>
+      <span class="badge ios">iOS · Safari</span>
+      <div class="install-steps">
+        <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Safari</strong> on iPhone or iPad</span></div>
+        <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>Share button</strong> — square with arrow pointing up</span></div>
+        <div class="install-step"><div class="step-num">3</div><span>Scroll down and tap <strong>Add to Home Screen</strong></span></div>
+        <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong> — ORBit opens full-screen like a native app</span></div>
+      </div>
+      <div style="margin-top:16px;">
+        <span class="badge android">Android · Chrome</span>
+        <div class="install-steps">
+          <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Chrome</strong></span></div>
+          <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>three-dot menu</strong> top right</span></div>
+          <div class="install-step"><div class="step-num">3</div><span>Tap <strong>Add to Home screen</strong></span></div>
+          <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong></span></div>
+        </div>
+      </div>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:24px 0 20px;"></div>
+    <div style="padding:14px 16px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(100,200,255,0.2);border-radius:0 8px 8px 0;margin-bottom:8px;">
+      <p style="font-size:13px;color:rgba(255,255,255,0.55);line-height:1.6;margin:0;font-style:italic;">"I was sick and dying and Orbit saved my life."</p>
+      <p style="font-size:11px;color:rgba(255,255,255,0.25);margin:6px 0 0;letter-spacing:0.5px;">— Evan Brammer</p>
+    </div>
   </div>
   <!-- SCORES TAB -->
   <div id="tab-scores" class="tab-content">
@@ -481,28 +496,6 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
       <button onclick="clearScores()" style="background:none;border:none;color:rgba(255,255,255,0.15);font-size:11px;font-family:inherit;cursor:pointer;">clear my scores</button>
     </div>
   </div>
-  <!-- INSTALL TAB -->
-  <div id="tab-install" class="tab-content">
-    <p style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:20px;">Add ORBit to your home screen for a full-screen experience with no browser chrome.</p>
-    <div class="how-section">
-      <span class="badge ios">iOS · Safari</span>
-      <div class="install-steps">
-        <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Safari</strong> on iPhone or iPad</span></div>
-        <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>Share button</strong> — square with arrow pointing up</span></div>
-        <div class="install-step"><div class="step-num">3</div><span>Scroll down and tap <strong>Add to Home Screen</strong></span></div>
-        <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong> — ORBit opens full-screen like a native app</span></div>
-      </div>
-    </div>
-    <div class="how-section" style="margin-top:20px;">
-      <span class="badge android">Android · Chrome</span>
-      <div class="install-steps">
-        <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Chrome</strong></span></div>
-        <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>three-dot menu</strong> top right</span></div>
-        <div class="install-step"><div class="step-num">3</div><span>Tap <strong>Add to Home screen</strong></span></div>
-        <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong></span></div>
-      </div>
-    </div>
-  </div>
 </div>
 <a id="logo-link" href="#" onclick="showMenu();return false;" style="position:fixed;top:0;right:0;width:150px;height:48px;z-index:10;display:block;-webkit-tap-highlight-color:transparent;"></a>
 
@@ -512,6 +505,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
 var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
 var W=0,H=0,TS=0.05,GM=4.0; // base value
 var zoom=1.0,zoomTarget=1.0,_pinchDist0=0,_pinching=false;
+var scrShake={mag:0,x:0,y:0};
 function getGM(){
   if(!sun||sun.mass===0)return GM;
   var mp=sun.mass/sun.maxMass;
@@ -1178,9 +1172,14 @@ function drawLauncher(t){
   // dark fill
   ctx.fillStyle="rgba(10,12,28,0.7)";
   ctx.beginPath();ctx.arc(lx,ly,PR,0,6.28);ctx.fill();
-  // outer ring
-  ctx.strokeStyle="rgba(180,220,255,0.2)";ctx.lineWidth=1;
+  // outer ring — yellow when ready, red in final 3 seconds (urgency > 0.7)
+  var _uf=(!launcher.pulling&&launcher.cooldown<=0&&launcher.launchWindow>0)?(launcher.launchWindow/launcher.launchWindowMax):-1;
+  var _rc=_uf>0.7?"255,70,40":(_uf>0?"255,200,60":"180,220,255");
+  var _ra=_uf>0.7?(0.5+_uf*0.3):(_uf>0?(0.3+_uf*0.2):0.2);
+  ctx.strokeStyle="rgba("+_rc+","+_ra+")";ctx.lineWidth=_uf>0?1.8:1;
   ctx.beginPath();ctx.arc(lx,ly,PR,0,6.28);ctx.stroke();
+  // soft glow when ready
+  if(_uf>0){var _rg2=ctx.createRadialGradient(lx,ly,PR,lx,ly,PR+20);_rg2.addColorStop(0,"rgba("+_rc+","+(0.05+_uf*0.08)+")");_rg2.addColorStop(1,"rgba("+_rc+",0)");ctx.fillStyle=_rg2;ctx.beginPath();ctx.arc(lx,ly,PR+20,0,6.28);ctx.fill();}
   // subtle inner ring
   ctx.strokeStyle="rgba(180,220,255,0.06)";ctx.lineWidth=0.5;
   ctx.beginPath();ctx.arc(lx,ly,PR*0.65,0,6.28);ctx.stroke();
@@ -1331,6 +1330,7 @@ function launchPlanet(){
   if(lp.pullDist<15)return;
   var r=launcher.nextR;
   orbs.push(makeOrb(launcher.x,launcher.y,lp.vx,lp.vy,r,false,launcher.nextPT));_orbsLaunched++;
+  scrShake.mag=Math.max(scrShake.mag,2.5);
   disturb(launcher.x,launcher.y,2+lp.power*2);
   launcherIdleTime=0;launcherIdleRings=[];
   launcher.launchWindow=0; // reset window — will be set by queueNext
@@ -1413,7 +1413,8 @@ if(o.suctioning){
     }
     score-=10;scorePenalty=1;
     penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:10});
-    sun.glow=(sun.glow||0)+0.4; // subtle flash, no ring/ripple
+    sun.glow=(sun.glow||0)+0.4;
+    scrShake.mag=Math.max(scrShake.mag,5);
     return;
   }
   return;
@@ -2342,12 +2343,12 @@ function drawLogo(){
 
 /* === MENU / PAUSE === */
 function showTab(name){
-  ['game','howto','scores','install'].forEach(function(t){
+  ['game','howto','scores'].forEach(function(t){
     var el=document.getElementById('tab-'+t);
     if(el)el.classList.toggle('active',t===name);
   });
   document.querySelectorAll('.tab-btn').forEach(function(b){
-    var map={'game':'game','howto':'how to play','scores':'scores','install':'install'};
+    var map={'game':'game','howto':'tips','scores':'scores'};
     b.classList.toggle('active',b.textContent.trim()===map[name]);
   });
   if(name==='scores')renderLeaderboard();
@@ -2652,9 +2653,11 @@ if(Math.abs(zoom-zoomTarget)<0.001)zoom=zoomTarget;
 // ── BACKGROUND — fixed screen space, never zooms ──
 drawNebula(time);drawGalaxies(time);drawStars(time);
 
+// ── SCREEN SHAKE ──
+if(scrShake.mag>0.1){scrShake.mag*=0.75;scrShake.x=(Math.random()-0.5)*scrShake.mag*2;scrShake.y=(Math.random()-0.5)*scrShake.mag*2;}else{scrShake.mag=0;scrShake.x=0;scrShake.y=0;}
 // ── GAME WORLD (zoomed) ──
 ctx.save();
-ctx.translate(W/2,H/2);
+ctx.translate(W/2+scrShake.x,H/2+scrShake.y);
 ctx.scale(zoom,zoom);
 ctx.translate(-W/2,-H/2);
 stepW();drawGrid(time);updateSun(dt);drawSun(time);

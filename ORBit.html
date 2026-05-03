@@ -1536,48 +1536,37 @@ function drawLeaderLine(o){
 function drawTrail(o){
   if(o.dead||o.trail.length<4)return;
   var tr=o.trail,len=tr.length;
-
-  // Group consecutive same-color points into runs, draw each as one smooth path
-  var runs=[],curC=null,runStart=0;
-  for(var i=1;i<len;i++){
-    var c=tr[i].c||[60,160,255];
-    if(!curC||c[0]!==curC[0]||c[1]!==curC[1]||c[2]!==curC[2]){
-      if(curC)runs.push({c:curC,from:runStart,to:i-1});
-      curC=c;runStart=i-1;
-    }
-  }
-  if(curC)runs.push({c:curC,from:runStart,to:len-1});
-
-  ctx.lineCap="round";
-  ctx.lineJoin="round";
-
-  for(var ri=0;ri<runs.length;ri++){
-    var run=runs[ri];
-    var c=run.c;
-    // use mid-run frac for alpha and width
-    var midFrac=(run.from+run.to)*0.5/len;
-    var a=midFrac*midFrac*(o.isMoon?0.5:0.85);
-    if(a<0.01)continue;
-    ctx.strokeStyle="rgba(200,215,230,"+a+")";
-    ctx.lineWidth=o.isMoon?0.6:0.9;
-    ctx.beginPath();
-    // smooth curve through points using quadratic bezier midpoints
-    var p0=tr[run.from];
-    ctx.moveTo(p0.x,p0.y);
-    for(var i=run.from+1;i<=run.to;i++){
+  var ecc=o.eccSmooth!==undefined?o.eccSmooth:1;
+  var visLen=Math.max(6,Math.floor(TRAIL_LEN*(1-Math.min(1,ecc*1.6))));
+  var si=Math.max(0,len-visLen);
+  var t0=tr[si];
+  var ld=Math.sqrt((t0.x-o.x)*(t0.x-o.x)+(t0.y-o.y)*(t0.y-o.y));
+  var closed=(len-si>=~~(TRAIL_LEN*0.82))&&(ld<o.r*5+22);
+  ctx.lineCap="round";ctx.lineJoin="round";
+  if(closed){
+    var _gp=0.55+Math.sin(Date.now()*0.0045)*0.35;
+    ctx.save();
+    ctx.shadowColor="rgba(100,230,255,0.55)";ctx.shadowBlur=9;
+    ctx.strokeStyle="rgba(130,235,255,"+_gp+")";ctx.lineWidth=o.isMoon?0.8:1.5;
+    ctx.beginPath();ctx.moveTo(tr[si].x,tr[si].y);
+    for(var i=si+1;i<len;i++){
       var p=tr[i];
-      if(i<run.to){
-        var pn=tr[i+1];
-        var mx=(p.x+pn.x)*0.5,my=(p.y+pn.y)*0.5;
-        ctx.quadraticCurveTo(p.x,p.y,mx,my);
-      } else {
-        ctx.lineTo(p.x,p.y);
-      }
+      if(i<len-1){var pn=tr[i+1];ctx.quadraticCurveTo(p.x,p.y,(p.x+pn.x)*0.5,(p.y+pn.y)*0.5);}
+      else{ctx.lineTo(p.x,p.y);}
     }
     ctx.stroke();
+    ctx.shadowBlur=0;ctx.restore();
+  } else {
+    for(var i=si+1;i<len;i++){
+      var frac=(i-si)/(len-si);
+      var a=frac*frac*(o.isMoon?0.45:0.8);
+      if(a<0.01)continue;
+      ctx.strokeStyle="rgba(200,215,230,"+a+")";
+      ctx.lineWidth=o.isMoon?0.6:0.9;
+      ctx.beginPath();ctx.moveTo(tr[i-1].x,tr[i-1].y);ctx.lineTo(tr[i].x,tr[i].y);ctx.stroke();
+    }
   }
-  ctx.lineCap="butt";
-  ctx.lineJoin="miter";
+  ctx.lineCap="butt";ctx.lineJoin="miter";
 }
 function drawOrb(o){
   ctx.globalAlpha=1; // always reset on entry

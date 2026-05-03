@@ -1549,7 +1549,8 @@ function drawTrail(o){
   if(o.dead||o.trail.length<4)return;
   var tr=o.trail,len=tr.length;
   var ecc=o.eccSmooth!==undefined?o.eccSmooth:1;
-  var visLen=Math.max(80,Math.floor(TRAIL_LEN*(1-Math.min(1,ecc*0.85))));
+  // 50% base trail for any orbit, scales to 100% for perfect circles
+  var visLen=Math.max(60,Math.floor(TRAIL_LEN*(0.5+0.5*Math.max(0,1-ecc))));
   var si=Math.max(0,len-visLen);
   var t0=tr[si];
   // closure: leader line's far end approaches the oldest trail point
@@ -1560,12 +1561,18 @@ function drawTrail(o){
   var _thresh=Math.max(35,_orbR*0.14+o.r*4);
   var closeT=(!o._leaderHit&&_le)?Math.max(0,1-_od/_thresh):0;
   var closed=closeT>0.65;
+  // colour blend: grey (ecc=1) → blue (ecc=0) → cyan (closure)
+  var blendT=Math.max(0,Math.min(1,(0.65-ecc)/0.65));
+  var _cr=~~(200-120*blendT);
+  var _cg=~~(215-45*blendT+closeT*60);
+  var _cb=~~(230+25*blendT);
+  var _lw=(o.isMoon?0.55:0.85)+blendT*0.5;
   ctx.lineCap="round";ctx.lineJoin="round";
   if(closed){
     var _gp=(0.55+Math.sin(Date.now()*0.0045)*0.35)*closeT;
     ctx.save();
     ctx.shadowColor="rgba(100,230,255,0.55)";ctx.shadowBlur=9*closeT;
-    ctx.strokeStyle="rgba(130,235,255,"+_gp+")";ctx.lineWidth=o.isMoon?0.8:1.6;
+    ctx.strokeStyle="rgba("+_cr+","+_cg+","+_cb+","+_gp+")";ctx.lineWidth=o.isMoon?0.9:1.7;
     ctx.beginPath();ctx.moveTo(tr[si].x,tr[si].y);
     for(var i=si+1;i<len;i++){
       var p=tr[i];
@@ -1575,13 +1582,12 @@ function drawTrail(o){
     ctx.stroke();
     ctx.shadowBlur=0;ctx.restore();
   } else {
-    var _cr=~~(200+closeT*55),_cg=~~(215+closeT*20);
     for(var i=si+1;i<len;i++){
       var frac=(i-si)/(len-si);
-      var a=frac*frac*(o.isMoon?0.45:0.8);
+      var a=frac*frac*(o.isMoon?0.4:0.75);
       if(a<0.01)continue;
-      ctx.strokeStyle="rgba("+_cr+","+_cg+",230,"+a+")";
-      ctx.lineWidth=o.isMoon?0.6:0.9;
+      ctx.strokeStyle="rgba("+_cr+","+_cg+","+_cb+","+a+")";
+      ctx.lineWidth=_lw;
       ctx.beginPath();ctx.moveTo(tr[i-1].x,tr[i-1].y);ctx.lineTo(tr[i].x,tr[i].y);ctx.stroke();
     }
   }
@@ -2151,12 +2157,6 @@ function drawScore(t){
     ctx.shadowColor="rgba(200,80,255,0.6)";ctx.shadowBlur=8;
     ctx.fillText("\xd7"+_lm+" perfect",px,py+16);
     ctx.shadowBlur=0;
-  } else if(!_taughtCircle&&time>4000){
-    var _nudgePulse=0.35+Math.sin(Date.now()*0.0018)*0.2;
-    ctx.font="11px system-ui,sans-serif";
-    ctx.textAlign="left";ctx.textBaseline="middle";
-    ctx.fillStyle="rgba(200,160,255,"+_nudgePulse+")";
-    ctx.fillText("○ aim for circles \xd710",px,py+16);
   }
 
   // --- PROGRESS BAR ---
@@ -2826,6 +2826,12 @@ if(!blackHole.active&&!blackHole.done){drawLauncher(time);}
 drawLauncherHandle(launcher.x,launcher.y);
 drawOffscreenIndicators();
 drawScore(time);
+if(!_taughtCircle&&time>4000&&!blackHole.active){
+  var _np=0.3+Math.sin(Date.now()*0.0018)*0.18;
+  ctx.font="12px system-ui,sans-serif";ctx.textAlign="center";ctx.textBaseline="top";
+  ctx.fillStyle="rgba(200,155,255,"+_np+")";
+  ctx.fillText("○  aim for perfect circles  \xd710",W/2,18);
+}
 drawMenuBtn();
 drawLogo();
 // game over text

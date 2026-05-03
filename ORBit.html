@@ -1449,12 +1449,11 @@ if(_leC&&_t0C){
   var _odC=Math.sqrt((_leC.x-_t0C.x)*(_leC.x-_t0C.x)+(_leC.y-_t0C.y)*(_leC.y-_t0C.y));
   o.closeT=!o._leaderHit?Math.max(0,1-_odC/_threshC):0;
 } else {o.closeT=0;}
-// smooth closeT so leader-pts 8-frame update gap doesn't cause flicker
+// smooth closeT — visual only, does not drive isCircular
 o.closeTSmooth=o.closeTSmooth!==undefined?o.closeTSmooth*0.88+o.closeT*0.12:o.closeT;
-// hysteresis on closure: enter at 0.5, exit at 0.3
-o._isClosed=o._isClosed?(o.closeTSmooth>0.30&&!o._leaderHit):(o.closeTSmooth>0.50&&!o._leaderHit);
-var _canEnter=(o._isClosed||o.eccSmooth<0.20)&&o.instability<0.35&&!o.suctioning;
-var _mustExit=o.eccSmooth>0.28&&!o._isClosed||o.instability>0.50||o.suctioning;
+// isCircular: driven by eccentricity only — generous instability guard
+var _canEnter=o.eccSmooth<0.28&&o.instability<0.55&&!o.suctioning&&!o._leaderHit;
+var _mustExit=o.eccSmooth>0.38||o.instability>0.70||o.suctioning||o._leaderHit;
 o.isCircular=o.isCircular?!_mustExit:_canEnter;
 if(o.isCircular&&!o._wasCircular){
   if(!o._lastCircPop||time-o._lastCircPop>12000){

@@ -1351,7 +1351,7 @@ function initOrbs(){
     orbs.push(makeOrb(sun.x+Math.cos(ang)*c.d,sun.y+Math.sin(ang)*c.d,-Math.sin(ang)*v,Math.cos(ang)*v,c.r,false,c.pt));
   }
 }
-function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:(Math.random()-0.5)*0.0002,glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,ptype:PTYPES[pt],craterSeeds:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,idleTime:Math.random()*3000,suctioning:false,suctionT:0,_leaderCache:null,_leaderFrame:-99};}
+function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:(Math.random()-0.5)*0.0002,glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,eccSmooth:1,isCircular:false,ptype:PTYPES[pt],craterSeeds:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,idleTime:Math.random()*3000,suctioning:false,suctionT:0,_leaderCache:null,_leaderFrame:-99};}
 function respawnOrb(o){var sa=Math.min(W,H),d=sa*(0.1+Math.random()*0.3)+35,ang=Math.random()*6.28,v=orbV(o.baseR,d);o.x=sun.x+Math.cos(ang)*d;o.y=sun.y+Math.sin(ang)*d;o.vx=-Math.sin(ang)*v;o.vy=Math.cos(ang)*v;o.dead=false;o.respawnTimer=0;o.glow=0.5;o.trail=[];o.instability=0;o.suctioning=false;o.suctionT=0;o.r=o.baseR;}
 function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);// 4 sub-steps for accurate orbital integration (no force cap)
 var subDt=dt/4;
@@ -1418,7 +1418,16 @@ if(o.suctioning){
     return;
   }
   return;
-}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;// circular soft boundary — tight push-back band near edge, invisible otherwise
+}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.003*dt;
+// eccentricity — 0=circle, 1=parabola. uses vis-viva + angular momentum
+var _edx=o.x-sun.x,_edy=o.y-sun.y,_er=Math.sqrt(_edx*_edx+_edy*_edy);
+var _ev2=o.vx*o.vx+o.vy*o.vy,_eGM=getGM();
+var _eEps=_ev2/2-_eGM/Math.max(_er,1);
+var _eH=_edx*o.vy-_edy*o.vx;
+var _ecc=(_eEps<0)?Math.sqrt(Math.max(0,1+2*_eEps*_eH*_eH/(_eGM*_eGM))):1;
+o.eccSmooth=o.eccSmooth===undefined?_ecc:o.eccSmooth*0.97+_ecc*0.03;
+o.isCircular=(o.eccSmooth<0.12&&o.instability<0.35&&!o.suctioning);
+// circular soft boundary — tight push-back band near edge, invisible otherwise
 var bx=o.x-sun.x,by=o.y-sun.y,bd=Math.sqrt(bx*bx+by*by); // centered on sun
 var mD=600; // 600px fixed radius from sun — visible when zoomed out
 var pushZone=mD*0.12; // push starts 8% before boundary
@@ -1460,6 +1469,19 @@ function drawLeaderLine(o){
     }
     o._leaderPts=pts;
     o._leaderHit=hit;
+  }
+  // circular orbit — draw glowing ring instead of trajectory, then return
+  if(o.isCircular&&!o._leaderHit){
+    var _cr=Math.sqrt((o.x-sun.x)*(o.x-sun.x)+(o.y-sun.y)*(o.y-sun.y));
+    var _cp=0.55+Math.sin(Date.now()*0.0025)*0.3;
+    ctx.save();
+    ctx.shadowColor="rgba(210,60,255,0.7)";ctx.shadowBlur=10;
+    ctx.strokeStyle="rgba(210,60,255,"+(_cp*0.65)+")";ctx.lineWidth=1.4;
+    ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(sun.x,sun.y,_cr,0,6.28);ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.restore();
+    return;
   }
   // red only if simulation ends in sun; yellow if unstable; else blue
   var state=o._leaderHit?'red':(o.instability>0.5?'yellow':'blue');
@@ -1964,6 +1986,7 @@ var scorePenalty=0; // flash timer for penalty
 var orbsEaten=0;    // how many eaten so far — multiplies penalty
 var scorePop=0;     // value of last pop (for float animation)
 var scorePopY=0;    // current y offset of pop
+var scorePopMult=1; // multiplier that triggered last pop
 var penaltyPops=[];  // [{x,y,vy,life}] floating -10 labels from sun
 
 // How long (ms) one full orbit-tick takes based on orb count
@@ -1988,6 +2011,11 @@ function stableOrbCount(){
   return c;
 }
 
+function circularOrbCount(){
+  var c=0;
+  for(var i=0;i<orbs.length;i++){if(!orbs[i].dead&&orbs[i].isCircular)c++;}
+  return c;
+}
 function updateScore(dt){
   if(chillMode)return;
   var total=liveOrbCount();
@@ -1999,8 +2027,10 @@ function updateScore(dt){
   scoreOrbit+=dt/period;
   if(scoreOrbit>=1){
     scoreOrbit-=1;
-    var pts=Math.max(1,stable); // at least 1 if any in flight
-    score+=pts;scorePop=pts;
+    var circ=circularOrbCount();
+    var mult=circ>0?circ*10:1;
+    var pts=Math.max(1,stable)*mult;
+    score+=pts;scorePop=pts;scorePopMult=mult;
   }
 }
 
@@ -2058,13 +2088,30 @@ function drawScore(t){
   if(scorePop>0){
     scorePopY+=0.04;
     var popAlpha=Math.max(0,1-scorePopY*0.7);
-    ctx.font="bold 13px system-ui,sans-serif";
-    ctx.fillStyle="rgba(100,220,255,"+popAlpha+")";
     ctx.textBaseline="middle";
     ctx.textAlign="left";
-    // show net value (stable minus unstable)
-    ctx.fillText("+"+scorePop,px,py-2-scorePopY*22);
-    if(popAlpha<=0){scorePop=0;scorePopY=0;}
+    if(scorePopMult>1){
+      ctx.font="bold 13px system-ui,sans-serif";
+      ctx.fillStyle="rgba(200,80,255,"+popAlpha+")";
+      ctx.fillText("+"+scorePop+" \xd7"+scorePopMult,px,py-2-scorePopY*22);
+    } else {
+      ctx.font="bold 13px system-ui,sans-serif";
+      ctx.fillStyle="rgba(100,220,255,"+popAlpha+")";
+      ctx.fillText("+"+scorePop,px,py-2-scorePopY*22);
+    }
+    if(popAlpha<=0){scorePop=0;scorePopY=0;scorePopMult=1;}
+  }
+  // --- CIRCULAR ORBIT MULTIPLIER BADGE (shown live when active) ---
+  var _liveCirc=circularOrbCount();
+  if(_liveCirc>0){
+    var _lm=_liveCirc*10;
+    var _badgePulse=0.7+Math.sin(Date.now()*0.003)*0.3;
+    ctx.font="bold 11px system-ui,sans-serif";
+    ctx.textAlign="left";ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(200,80,255,"+_badgePulse+")";
+    ctx.shadowColor="rgba(200,80,255,0.6)";ctx.shadowBlur=6;
+    ctx.fillText("\xd7"+_lm,px,py+16);
+    ctx.shadowBlur=0;
   }
 
   // --- PROGRESS BAR ---

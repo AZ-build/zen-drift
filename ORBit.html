@@ -441,8 +441,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
     <div class="how-section">
       <h3>Controls</h3>
       <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. The trajectory line shows where it will go. Use the handle on the right edge to slide the launcher up or down — closer to the sun means faster, tighter orbits. You have 10 seconds to launch before it auto-fires toward the sun.</p></div></div>
-      <div class="how-card"><div class="how-icon">🕹️</div><div><h4>Pan</h4><p>Use the joystick in the bottom-left corner to pan the camera around the solar system. Tap the home button that appears beside it to snap back to center.</p></div></div>
-      <div class="how-card"><div class="how-icon">🔍</div><div><h4>Zoom</h4><p>Pinch with two fingers to zoom in or out. Zoom out to see planets that have drifted off-screen. Double-tap to reset zoom.</p></div></div>
+      <div class="how-card"><div class="how-icon">✌️</div><div><h4>Pan &amp; Zoom</h4><p>Use two fingers to explore the solar system. Drag two fingers together to pan the camera in any direction. Pinch to zoom in or out. Double-tap to snap back to center and reset zoom. The ⌂ button appears in the bottom-left whenever you've panned away from home.</p></div></div>
       <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a path planets will follow. A brief hold nudges gently — great for coaxing an orbit rounder.</p></div></div>
       <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>The leader line ahead of each planet shows its future path. <span style="color:#5599ff;">Blue</span> = stable orbit. <span style="color:#ff88dd;">Pink</span> = nearly a perfect circle — don't disturb it! <span style="color:#ddcc30;">Yellow</span> = drifting. <span style="color:#e04030;">Red</span> = heading into the sun or out of bounds — act fast. The trail behind each planet turns from grey to blue as the orbit rounds out. When it glows <span style="color:#88eeff;">cyan</span> and closes the loop with the leader line, the orbit is locked and scoring ×10.</p></div></div>
       <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
@@ -513,7 +512,7 @@ var W=0,H=0,TS=0.05,GM=4.0; // base value
 var zoom=1.0,zoomTarget=1.0,_pinchDist0=0,_pinching=false;
 var scrShake={mag:0,x:0,y:0};
 var camX=0,camY=0,camHoming=false;
-var joy={active:false,bx:0,by:0,dx:0,dy:0,ltap:0,posY:0,draggingHandle:false};
+var _pan2={active:false,prevMX:0,prevMY:0};
 function getGM(){
   if(!sun||sun.mass===0)return GM;
   var mp=sun.mass/sun.maxMass;
@@ -1095,7 +1094,7 @@ function getRandPType(){
 var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0,draggingHandle:false};
 var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=1.0;
 var PLATFORM_R=22; // full circle platform radius
-var JOY_R=40,JOY_PAN=0.42,BND_R=700; // BND_R = world boundary ring radius
+var BND_R=700; // world boundary ring radius
 var CAM_MAX_X=500,CAM_MAX_Y=500; // computed in resize()
 function queueNext(){
   launcher.nextR=6+Math.floor(Math.random()*16);
@@ -1921,63 +1920,66 @@ function inMenuZone(p){
   var sy=p.sy!==undefined?p.sy:p.y;
   return sx>=W-62&&sy>=50&&sy<=100;
 }
-function joyBase(){return{bx:JOY_R+20,by:joy.posY};}
-function inJoyHandle(p){var sx=p.sx!==undefined?p.sx:p.x;var sy=p.sy!==undefined?p.sy:p.y;return sx<48&&sy>joy.posY-26&&sy<joy.posY+26;}
-function inJoyZone(p){
-  var jb=joyBase();
-  var sx=p.sx!==undefined?p.sx:p.x;
-  var sy=p.sy!==undefined?p.sy:p.y;
-  return Math.sqrt((sx-jb.bx)*(sx-jb.bx)+(sy-jb.by)*(sy-jb.by))<JOY_R+22;
-}
 function inHomeBtn(p){
-  var jb=joyBase();
   var sx=p.sx!==undefined?p.sx:p.x;
   var sy=p.sy!==undefined?p.sy:p.y;
-  var hx=jb.bx,hy=jb.by-JOY_R-22;
-  return (Math.abs(camX)>8||Math.abs(camY)>8)&&Math.sqrt((sx-hx)*(sx-hx)+(sy-hy)*(sy-hy))<20;
+  return (Math.abs(camX)>8||Math.abs(camY)>8)&&sx<56&&sy>H-64&&sy<H-12;
 }
 function _pinchDist(e){
   var dx=e.touches[0].clientX-e.touches[1].clientX;
   var dy=e.touches[0].clientY-e.touches[1].clientY;
   return Math.sqrt(dx*dx+dy*dy);
 }
+function _pinchMid(e){
+  return{x:(e.touches[0].clientX+e.touches[1].clientX)*0.5,
+         y:(e.touches[0].clientY+e.touches[1].clientY)*0.5};
+}
 function onD(e){e.preventDefault();
-  // 2 fingers = pinch zoom — cancel joystick too
   if(e.touches&&e.touches.length===2){
-    _pinching=true;_pinchDist0=_pinchDist(e);
+    _pinching=true;
+    _pinchDist0=_pinchDist(e);
+    var m=_pinchMid(e);
+    _pan2.active=true;_pan2.prevMX=m.x;_pan2.prevMY=m.y;
     well.active=false;well.trail=[];launcher.pulling=false;launcher.draggingHandle=false;
-    joy.active=false;joy.dx=0;joy.dy=0;joy.draggingHandle=false;
     return;
   }
-  _pinching=false;
+  _pinching=false;_pan2.active=false;
   var p=gXY(e);
-  var ps={x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY};
+  var ps={x:e.touches?e.touches[0].clientX:e.clientX,y:e.touches?e.touches[0].clientY:e.clientY};
   if(inMenuZone(ps)){showMenu();return;}
   if(inHandle(ps)){launcher.draggingHandle=true;return;}
-  if(inJoyHandle(ps)){joy.draggingHandle=true;return;}
   if(inHomeBtn(ps)){camHoming=true;return;}
-  if(inJoyZone(ps)&&!launcher.pulling){joy.active=true;joy.bx=ps.x;joy.by=ps.y;joy.dx=0;joy.dy=0;camHoming=false;return;}
   if(inLZ(ps)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}
   else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}
 }
 function onM(e){e.preventDefault();
-  // 2 fingers = update pinch
   if(e.touches&&e.touches.length===2){
-    if(!_pinching){_pinching=true;_pinchDist0=_pinchDist(e);return;}
+    if(!_pinching){
+      _pinching=true;_pinchDist0=_pinchDist(e);
+      var m0=_pinchMid(e);
+      _pan2.active=true;_pan2.prevMX=m0.x;_pan2.prevMY=m0.y;
+      return;
+    }
     var d=_pinchDist(e);
     if(_pinchDist0>0){
-      var ratio=1+(d/_pinchDist0-1)*0.5; // dampen sensitivity
-      var newZoom=zoomTarget*ratio;
-zoomTarget=Math.max(0.55,Math.min(1.8,newZoom));
+      var ratio=1+(d/_pinchDist0-1)*0.5;
+      zoomTarget=Math.max(0.55,Math.min(1.8,zoomTarget*ratio));
       _pinchDist0=d;
     }
+    var m=_pinchMid(e);
+    if(_pan2.active){
+      var pdx=m.x-_pan2.prevMX;
+      var pdy=m.y-_pan2.prevMY;
+      camX=Math.max(-CAM_MAX_X,Math.min(CAM_MAX_X,camX-pdx));
+      camY=Math.max(-CAM_MAX_Y,Math.min(CAM_MAX_Y,camY-pdy));
+      camHoming=false;
+    }
+    _pan2.prevMX=m.x;_pan2.prevMY=m.y;
     return;
   }
   if(_pinching)return;
   var p=gXY(e);
-  var ps={x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY};
-  if(joy.active){var jb=joyBase();var jdx=ps.x-jb.bx,jdy=ps.y-jb.by;var jdist=Math.sqrt(jdx*jdx+jdy*jdy);if(jdist>JOY_R){jdx=jdx/jdist*JOY_R;jdy=jdy/jdist*JOY_R;}joy.dx=jdx;joy.dy=jdy;return;}
-  if(joy.draggingHandle){joy.posY=Math.max(80+JOY_R,Math.min(H-JOY_R-80,ps.y));return;}
+  var ps={x:e.touches?e.touches[0].clientX:e.clientX,y:e.touches?e.touches[0].clientY:e.clientY};
   if(launcher.draggingHandle){
     launcher.y=Math.max(80,Math.min(H-80,ps.y));
     launcher.x=W/2;
@@ -1995,27 +1997,17 @@ zoomTarget=Math.max(0.55,Math.min(1.8,newZoom));
 function onU(e){e.preventDefault();
   var wasPinching=_pinching;
   if(e.touches&&e.touches.length===1){
-    if(wasPinching){_pinching=false;return;}
+    if(wasPinching){_pinching=false;_pan2.active=false;return;}
   }
   if(e.touches&&e.touches.length>0)return;
-  _pinching=false;
-  // release joystick — double-tap on joy zone = home
-  if(joy.active){
-    var now2=Date.now();
-    if(now2-joy.ltap<320){camHoming=true;}
-    joy.ltap=now2;
-    joy.active=false;joy.dx=0;joy.dy=0;
-    return;
-  }
-  if(joy.draggingHandle){joy.draggingHandle=false;return;}
+  _pinching=false;_pan2.active=false;
   if(launcher.draggingHandle){launcher.draggingHandle=false;return;}
   if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}
   if(well.active){disturb(well.x,well.y,0.8);}
   well.active=false;well.trail=[];dragN=0;
-  // double-tap anywhere else = reset zoom
   if(!wasPinching&&e.changedTouches&&e.changedTouches.length===1){
     var now=Date.now();
-    if(now-_lastTap<320){zoomTarget=1.0;}
+    if(now-_lastTap<320){zoomTarget=1.0;camX=0;camY=0;camHoming=false;}
     _lastTap=now;
   }
 }
@@ -2023,7 +2015,7 @@ canvas.addEventListener("touchstart",onD,{passive:false});
 canvas.addEventListener("touchmove",onM,{passive:false});
 canvas.addEventListener("touchend",onU,{passive:false});
 canvas.addEventListener("mousedown",onD,false);
-canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling||joy.active||launcher.draggingHandle||joy.draggingHandle)onM(e);},false);
+canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling||launcher.draggingHandle)onM(e);},false);
 canvas.addEventListener("mouseup",onU,false);
 canvas.addEventListener("wheel",function(e){
   e.preventDefault();
@@ -2033,7 +2025,7 @@ canvas.addEventListener("wheel",function(e){
 // double-tap handled inside onU to avoid dual-listener conflicts
 var _lastTap=0;
 
-function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";CAM_MAX_X=Math.max(120,BND_R-W/2+100);CAM_MAX_Y=Math.max(120,BND_R-H/2+100);initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);joy.posY=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
+function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";CAM_MAX_X=Math.max(120,BND_R-W/2+100);CAM_MAX_Y=Math.max(120,BND_R-H/2+100);initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",function(){
   if(document.hidden){
@@ -2041,7 +2033,7 @@ document.addEventListener("visibilitychange",function(){
     // clear ALL touch state so no ghost touches on return
     well.active=false;well.depth=0;well.holdTime=0;well.trail=[];
     launcher.pulling=false;launcher.draggingHandle=false;
-    joy.active=false;joy.dx=0;joy.dy=0;
+    _pan2.active=false;
     dragN=0;
     // show menu
     var mo=document.getElementById('menu-overlay');
@@ -2401,68 +2393,19 @@ function drawOffscreenIndicators(){
   }
 }
 
-function drawJoystickHandle(){
-  var trackX=24;
-  var trackTop=80+JOY_R;
-  var trackBot=H-JOY_R-80;
-  var handleY=joy.posY;
-  var jb=joyBase();
-  ctx.strokeStyle="rgba(180,220,255,0.14)";ctx.lineWidth=1;
-  ctx.setLineDash([3,6]);
-  ctx.beginPath();ctx.moveTo(trackX,trackTop);ctx.lineTo(trackX,trackBot);ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.strokeStyle="rgba(180,220,255,0.07)";ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(jb.bx,jb.by);ctx.lineTo(trackX,handleY);ctx.stroke();
-  var hPulse=0.5+Math.sin(time*0.0018)*0.5;
-  ctx.fillStyle="rgba(180,220,255,"+(0.16+hPulse*0.08)+")";
-  ctx.strokeStyle="rgba(180,220,255,"+(0.45+hPulse*0.15)+")";
-  ctx.lineWidth=1.2;
-  ctx.beginPath();ctx.roundRect(trackX-12,handleY-14,24,28,7);ctx.fill();ctx.stroke();
-  ctx.strokeStyle="rgba(180,220,255,0.45)";ctx.lineWidth=1;
-  for(var gi=0;gi<3;gi++){var gy=handleY-4+gi*4;ctx.beginPath();ctx.moveTo(trackX-6,gy);ctx.lineTo(trackX+6,gy);ctx.stroke();}
-  ctx.strokeStyle="rgba(180,220,255,"+(0.3+hPulse*0.2)+")";ctx.lineWidth=1.2;ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(trackX,handleY-22);ctx.lineTo(trackX,handleY-30);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(trackX-4,handleY-26);ctx.lineTo(trackX,handleY-30);ctx.lineTo(trackX+4,handleY-26);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(trackX,handleY+22);ctx.lineTo(trackX,handleY+30);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(trackX-4,handleY+26);ctx.lineTo(trackX,handleY+30);ctx.lineTo(trackX+4,handleY+26);ctx.stroke();
-  ctx.lineCap="butt";
-}
-function drawJoystick(){
-  var jb=joyBase();
-  var bx=jb.bx,by=jb.by;
-  var hasPan=Math.abs(camX)>8||Math.abs(camY)>8;
-  var baseAlpha=joy.active?0.55:0.18;
+function drawHomeBtn(){
+  if(Math.abs(camX)<8&&Math.abs(camY)<8)return;
+  var hx=28,hy=H-36;
+  var hPulse=0.5+Math.sin(Date.now()*0.003)*0.3;
   ctx.save();
-  // outer ring
-  ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.7+")";ctx.lineWidth=1;
-  ctx.beginPath();ctx.arc(bx,by,JOY_R,0,6.28);ctx.stroke();
-  // inner ring
-  ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.35+")";ctx.lineWidth=0.7;
-  ctx.beginPath();ctx.arc(bx,by,JOY_R*0.45,0,6.28);ctx.stroke();
-  // stick nub — follows finger, or rests at center
-  var nx=bx+joy.dx,ny=by+joy.dy;
-  var nAlpha=joy.active?0.75:0.3;
-  ctx.fillStyle="rgba(180,220,255,"+nAlpha+")";
-  ctx.beginPath();ctx.arc(nx,ny,9,0,6.28);ctx.fill();
-  ctx.strokeStyle="rgba(180,220,255,"+(nAlpha*0.6)+")";ctx.lineWidth=0.8;
-  ctx.beginPath();ctx.arc(nx,ny,9,0,6.28);ctx.stroke();
-  // compass ticks (N/S/E/W hints)
-  ctx.strokeStyle="rgba(180,220,255,"+baseAlpha*0.5+")";ctx.lineWidth=0.8;
-  for(var ti=0;ti<4;ti++){var ta=ti*1.571;ctx.beginPath();ctx.moveTo(bx+Math.cos(ta)*(JOY_R-8),by+Math.sin(ta)*(JOY_R-8));ctx.lineTo(bx+Math.cos(ta)*(JOY_R-3),by+Math.sin(ta)*(JOY_R-3));ctx.stroke();}
-  // home button — appears above joystick when panned
-  if(hasPan){
-    var hx=bx,hy=by-JOY_R-22;
-    var hPulse=0.5+Math.sin(Date.now()*0.003)*0.3;
-    ctx.fillStyle="rgba(180,220,255,"+(hPulse*0.18)+")";
-    ctx.beginPath();ctx.arc(hx,hy,16,0,6.28);ctx.fill();
-    ctx.strokeStyle="rgba(180,220,255,"+(hPulse*0.65)+")";ctx.lineWidth=1;
-    ctx.beginPath();ctx.arc(hx,hy,16,0,6.28);ctx.stroke();
-    // dot = "you are here" / home icon
-    ctx.fillStyle="rgba(180,220,255,"+(hPulse*0.8)+")";
-    ctx.beginPath();ctx.arc(hx,hy,3.5,0,6.28);ctx.fill();
-    ctx.strokeStyle="rgba(180,220,255,"+(hPulse*0.5)+")";ctx.lineWidth=0.8;
-    ctx.beginPath();ctx.arc(hx,hy,8,0,6.28);ctx.stroke();
-  }
+  ctx.fillStyle="rgba(20,30,60,"+(0.55+hPulse*0.1)+")";
+  ctx.strokeStyle="rgba(180,220,255,"+(0.35+hPulse*0.25)+")";
+  ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(hx-20,hy-16,40,32,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle="rgba(180,220,255,"+(0.65+hPulse*0.2)+")";
+  ctx.font="16px system-ui,sans-serif";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("⌂",hx,hy);
   ctx.restore();
 }
 function drawVoidToast(dt){
@@ -2747,7 +2690,7 @@ function resetGame(){
   score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];worldPops=[];_taughtCircle=false;_voidToast=0;orbsEaten=0;
   orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
   well.active=false;well.depth=0;well.holdTime=0;well.trail=[];launcher.pulling=false;launcher.cooldown=0;launcher.launchNum=0;launcher.launchWindow=0;
-  camX=0;camY=0;camHoming=false;joy.active=false;joy.dx=0;joy.dy=0;
+  camX=0;camY=0;camHoming=false;_pan2.active=false;
   sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;
   sun.homeX=W/2;sun.homeY=H/2;
   sun.r=SUN_BASE_R;sun.mass=0;
@@ -2766,7 +2709,7 @@ function startGame(chill){
   paused=false;lastT=0;
   // zoom intro — starts close, backs out to show players zoom exists
   zoom=1.65;zoomTarget=1.0;
-  camX=0;camY=0;camHoming=false;joy.active=false;joy.dx=0;joy.dy=0;
+  camX=0;camY=0;camHoming=false;_pan2.active=false;
   _sessionStart=Date.now();
   fbLog('game_start',{chill:chillMode});
 }
@@ -2862,7 +2805,6 @@ drawNebula(time);drawGalaxies(time);drawStars(time);
 if(scrShake.mag>0.1){scrShake.mag*=0.75;scrShake.x=(Math.random()-0.5)*scrShake.mag*2;scrShake.y=(Math.random()-0.5)*scrShake.mag*2;}else{scrShake.mag=0;scrShake.x=0;scrShake.y=0;}
 // ── PAN UPDATE ──
 if(camHoming){camX*=0.84;camY*=0.84;if(Math.abs(camX)<0.5&&Math.abs(camY)<0.5){camX=0;camY=0;camHoming=false;}}
-else if(joy.active){camX+=joy.dx/JOY_R*JOY_PAN*dt;camY+=joy.dy/JOY_R*JOY_PAN*dt;camX=Math.max(-CAM_MAX_X,Math.min(CAM_MAX_X,camX));camY=Math.max(-CAM_MAX_Y,Math.min(CAM_MAX_Y,camY));}
 // ── GAME WORLD (zoomed + panned) ──
 ctx.save();
 ctx.translate(W/2-~~camX+scrShake.x,H/2-~~camY+scrShake.y);
@@ -2915,8 +2857,7 @@ ctx.restore(); // ── END GAME WORLD ──
 
 // ── UI (fixed, not zoomed) ──
 drawVignette();
-drawJoystickHandle();
-drawJoystick();
+drawHomeBtn();
 drawLauncherIdleHint();
 if(!blackHole.active&&!blackHole.done){drawLauncher(time);}
 drawLauncherHandle(launcher.x,launcher.y);

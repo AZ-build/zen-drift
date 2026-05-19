@@ -507,6 +507,2970 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
 <script>
 (function(){
 "use strict";
+var ORBIT_VERSION="0.6.1"; // Dispatch bumps this on every session. Format: major.session.hotfix
+var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
+var W=0,H=0,TS=0.05,GM=4.0; // base value
+var zoom=1.0,zoomTarget=1.0,_pinchDist0=0,_pinching=false;
+var scrShake={mag:0,x:0,y:0};
+var camX=0,camY=0,camHoming=false;
+var _pan2={active:false,prevMX:0,prevMY:0};
+function getGM(){
+  if(!sun||sun.mass===0)return GM;
+  var mp=sun.mass/sun.maxMass;
+  if(mp<0.38) return GM*(1+mp*0.8);              // 4.0 to 4.8
+  if(mp<0.82){ var p=(mp-0.38)/0.44; return GM*(1.3+p*1.2); } // 4.8 to 8.0 red giant
+  var p=(mp-0.82)/0.18; return GM*(2.5+p*5.5);   // 8.0 to 30.0 neutron star chaos
+}
+function orbV(r,d){return Math.sqrt(getGM()/(d*TS))*(1+Math.max(0,(14-r)*0.006));}
+function idealSpeed(d){return Math.sqrt(getGM()/d)*Math.sqrt(1/TS);}
+var SUN_BASE_R=28;
+var SUN_MAX_MASS=8;
+var sun={x:0,y:0,vx:0,vy:0,r:SUN_BASE_R,homeX:0,homeY:0,mass:0,maxMass:SUN_MAX_MASS};
+var blackHole={active:false,t:0,devourT:0,done:false,flash:0};
+var well={active:false,x:0,y:0,px:0,py:0,vx:0,vy:0,depth:0,holdTime:0,trail:[]};
+var WELL_CAPTURE=32; // radius where planet locks to finger
+var WELL_ATTRACT=180; // radius of gravitational influence
+var WELL_STRENGTH=0.006; // gravity constant for finger well
+var STAB=[[40,160,240],[40,200,180],[50,210,120],[180,210,50],[240,180,40],[240,100,40],[220,50,50]];
+function stabCol(t){t=Math.min(1,t)*(STAB.length-1);var i=Math.floor(t),f=t-i;if(i>=STAB.length-1)return STAB[STAB.length-1];return l3(STAB[i],STAB[i+1],f);}
+function l3(a,b,t){return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t]}
+function rgba(c,a){return"rgba("+~~c[0]+","+~~c[1]+","+~~c[2]+","+a+")"}
+
+var CELL=28,cols=2,rows=2,wH,wV;
+function initW(){cols=Math.ceil(W*2/CELL)+4;rows=Math.ceil(H*2/CELL)+4;wH=new Float32Array(cols*rows);wV=new Float32Array(cols*rows);}
+function disturb(px,py,str){var cx=~~(px/CELL)+1,cy=~~(py/CELL)+1;for(var dy=-4;dy<=4;dy++)for(var dx=-4;dx<=4;dx++){var gx=cx+dx,gy=cy+dy;if(gx<0||gx>=cols||gy<0||gy>=rows)continue;var d=Math.sqrt(dx*dx+dy*dy);if(d>4)continue;wH[gy*cols+gx]+=str*(1-d/4)*(1-d/4);}}
+function stepW(){for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wV[i]+=((wH[i-1]+wH[i+1]+wH[i-cols]+wH[i+cols])*0.25-wH[i])*0.3;wV[i]*=0.94;}for(var y=1;y<rows-1;y++)for(var x=1;x<cols-1;x++){var i=y*cols+x;wH[i]+=wV[i];if(wH[i]>5)wH[i]=5;if(wH[i]<-5)wH[i]=-5;}for(var x=0;x<cols;x++){wH[x]=0;wV[x]=0;wH[(rows-1)*cols+x]=0;wV[(rows-1)*cols+x]=0;}for(var y=0;y<rows;y++){wH[y*cols]=0;wV[y*cols]=0;wH[y*cols+cols-1]=0;wV[y*cols+cols-1]=0;}}
+function wAt(px,py){var gxf=px/CELL+1,gyf=py/CELL+1,gx=~~gxf,gy=~~gyf;if(gx<0||gx>=cols-1||gy<0||gy>=rows-1)return 0;var fx=gxf-gx,fy=gyf-gy,i=gy*cols+gx;return wH[i]*(1-fx)*(1-fy)+wH[i+1]*fx*(1-fy)+wH[i+cols]*(1-fx)*fy+wH[i+cols+1]*fx*fy;}
+function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<15)d=15;var bhAmp=blackHole.active?2.5:1; 
+  var s=14000*bhAmp/(d*d+200),wx=dx/d*s,wy=dy/d*s;if(well.depth>0.01){var fdx=well.x-px,fdy=well.y-py,fd=Math.sqrt(fdx*fdx+fdy*fdy);if(fd<15)fd=15;if(fd<200){var fs=(600+well.depth*well.depth*8000)/(fd*fd+80);wx+=fdx/fd*fs*well.depth;wy+=fdy/fd*fs*well.depth;}}return{x:wx,y:wy};}
+function drawGrid(t){
+  var sp=20; // slightly tighter grid
+
+  // ── GRID BOUNDS — centered on sun, based on BND_R so they cover the full
+  // game world regardless of screen aspect ratio. W/H-relative bounds left
+  // portrait phones with a narrow horizontal range and invisible edges.
+  var _gR=Math.round(BND_R*1.15+100); // just outside the boundary circle
+  var gMinX=Math.round(sun.x-_gR),gMaxX=Math.round(sun.x+_gR);
+  var gMinY=Math.round(sun.y-_gR),gMaxY=Math.round(sun.y+_gR);
+
+  // ── SUN PROXIMITY REFERENCE — use BND_R so falloff is world-size aware,
+  // not screen-size dependent. Old max(W,H)*0.42 gave sP=0 at screen edges
+  // on portrait phones, making the fabric nearly invisible there.
+  var _sPRef=BND_R*0.70;
+
+  // ── HORIZONTAL LINES ──
+  for(var py=gMinY;py<gMaxY;py+=sp){
+    ctx.beginPath();var s=false,wA=0,totalWarp=0;
+    for(var px=gMinX;px<gMaxX;px+=6){
+      var h=wAt(px,py),g=gWarp(px,py);
+      wA=Math.max(wA,Math.abs(h));
+      totalWarp+=Math.sqrt(g.x*g.x+g.y*g.y);
+      if(!s){ctx.moveTo(px+g.x,py+h*5+g.y);s=true;}
+      else ctx.lineTo(px+g.x,py+h*5+g.y);
+    }
+    var dS=Math.abs(py-sun.y);
+    var sP=Math.max(0,1-dS/_sPRef); // sun proximity
+    var avgWarp=Math.min(1,totalWarp/(W/4)*0.015);
+    var alpha=Math.min(0.65,0.13+sP*0.22+wA*0.12+avgWarp*0.15);
+    var lw=0.5+sP*0.9+avgWarp*0.4;
+    if(well.depth>0.1&&avgWarp>0.1){
+      ctx.strokeStyle="rgba(180,100,255,"+alpha*well.depth+")";
+    } else {
+      ctx.strokeStyle="rgba(60,120,160,"+alpha+")";
+    }
+    ctx.lineWidth=lw;ctx.stroke();
+
+    // bright accent line every 4th line — gives depth/layering
+    if(Math.round((py+1000)/sp)%4===0&&sP>0.05){
+      ctx.strokeStyle="rgba(100,180,220,"+(Math.max(sP,0.08)*0.12)+")";
+      ctx.lineWidth=0.3;ctx.stroke();
+    }
+  }
+
+  // ── VERTICAL LINES ──
+  for(var px=gMinX;px<gMaxX;px+=sp){
+    ctx.beginPath();var s=false,wA=0,totalWarp=0;
+    for(var py2=gMinY;py2<gMaxY;py2+=6){
+      var h=wAt(px,py2),g=gWarp(px,py2);
+      wA=Math.max(wA,Math.abs(h));
+      totalWarp+=Math.sqrt(g.x*g.x+g.y*g.y);
+      if(!s){ctx.moveTo(px+h*5+g.x,py2+g.y);s=true;}
+      else ctx.lineTo(px+h*5+g.x,py2+g.y);
+    }
+    var dS=Math.abs(px-sun.x);
+    var sP=Math.max(0,1-dS/_sPRef);
+    var avgWarp=Math.min(1,totalWarp/(H/4)*0.015);
+    var alpha=Math.min(0.5,0.10+sP*0.16+wA*0.08+avgWarp*0.12);
+    var lw=0.4+sP*0.7+avgWarp*0.3;
+    if(well.depth>0.1&&avgWarp>0.1){
+      ctx.strokeStyle="rgba(180,100,255,"+alpha*well.depth+")";
+    } else {
+      ctx.strokeStyle="rgba(40,100,140,"+alpha+")";
+    }
+    ctx.lineWidth=lw;ctx.stroke();
+  }
+}
+
+var stars=[];function initStars(){
+  stars=[];
+  for(var i=0;i<400;i++){
+    var tier=Math.random();
+    var bright=tier<0.03; // 3% very bright with cross spike
+    var med=tier<0.15;    // 15% medium
+    stars.push({
+      x:(Math.random()*1.8-0.4)*W, y:(Math.random()*1.8-0.4)*H, // extends beyond screen
+      a:bright?0.7+Math.random()*0.3:med?0.25+Math.random()*0.35:0.06+Math.random()*0.14,
+      r:bright?1.4+Math.random()*0.8:med?0.7+Math.random()*0.7:0.25+Math.random()*0.45,
+      sp:0.0001+Math.random()*0.0018,
+      po:Math.random()*6.28,
+      w:Math.random(),
+      spike:bright // very bright stars get a cross spike
+    });
+  }
+}
+function drawStars(t){
+  for(var i=0;i<stars.length;i++){
+    var s=stars[i];
+    var a=s.a*(0.55+Math.sin(t*s.sp+s.po)*0.45);
+    if(a<0.01)continue;
+    var r=~~(215+s.w*40),g=~~(215+s.w*30),b=~~(255-s.w*50);
+    ctx.fillStyle="rgba("+r+","+g+","+b+","+a+")";
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,6.28);ctx.fill();
+    // cross spike for very bright stars
+    if(s.spike&&a>0.3){
+      var sl=s.r*4;
+      ctx.strokeStyle="rgba("+r+","+g+","+b+","+(a*0.3)+")";
+      ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(s.x-sl,s.y);ctx.lineTo(s.x+sl,s.y);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(s.x,s.y-sl);ctx.lineTo(s.x,s.y+sl);ctx.stroke();
+    }
+  }
+}
+/* === NEBULA === */
+var nebulae=[];
+
+function initNebula(){
+  nebulae=[];
+  // Just 2-3 nebulae, positioned off to the sides, not center stage
+  var configs=[
+    {hue:280,sat:70,x:-0.1,y:0.2,rx:0.22,ry:0.18},  // violet left (off screen)
+    {hue:200,sat:65,x:1.05,y:0.7,rx:0.2,ry:0.22},    // cyan right (off screen)
+    {hue:340,sat:75,x:0.5,y:-0.12,rx:0.18,ry:0.14},  // rose top (off screen)
+  ];
+  for(var i=0;i<configs.length;i++){
+    var c=configs[i];
+    nebulae.push({
+      x:c.x*W, y:c.y*H,
+      rx:c.rx*W, ry:c.ry*H,
+      hue:c.hue, sat:c.sat,
+      alpha:0.06+Math.random()*0.03,
+      angle:Math.random()*6.28,
+      driftX:(Math.random()-0.5)*0.001, driftY:(Math.random()-0.5)*0.0008,
+      ph:Math.random()*6.28, breathSp:0.00006+Math.random()*0.00004,
+      // wisp offsets — make it irregular not a perfect oval
+      wisps:[
+        {dx:(Math.random()-0.5)*0.6,dy:(Math.random()-0.5)*0.6,scale:0.5+Math.random()*0.4,hOff:Math.floor(Math.random()*40)-20},
+        {dx:(Math.random()-0.5)*0.8,dy:(Math.random()-0.5)*0.8,scale:0.3+Math.random()*0.3,hOff:Math.floor(Math.random()*60)-30},
+        {dx:(Math.random()-0.5)*0.4,dy:(Math.random()-0.5)*0.4,scale:0.6+Math.random()*0.35,hOff:Math.floor(Math.random()*30)},
+      ]
+    });
+  }
+}
+function drawNebula(t){
+  for(var i=0;i<nebulae.length;i++){
+    var n=nebulae[i];
+    n.x+=n.driftX;n.y+=n.driftY;
+    if(n.x<-n.rx*2)n.x=W+n.rx;if(n.x>W+n.rx*2)n.x=-n.rx;
+    if(n.y<-n.ry*2)n.y=H+n.ry;if(n.y>H+n.ry*2)n.y=-n.ry;
+
+    var breath=1+Math.sin(t*n.breathSp+n.ph)*0.08;
+    var rx=n.rx*breath, ry=n.ry*breath;
+
+    // draw multiple overlapping ellipses at offsets = wispy cloud look
+    for(var wi=-1;wi<n.wisps.length;wi++){
+      var wx=n.x, wy=n.y, wscale=1.0, wh=n.hue;
+      if(wi>=0){
+        var w=n.wisps[wi];
+        wx=n.x+rx*w.dx; wy=n.y+ry*w.dy;
+        wscale=w.scale; wh=(n.hue+w.hOff+360)%360;
+      }
+      var wrx=rx*wscale, wry=ry*wscale, mr=Math.max(wrx,wry);
+      ctx.save();
+      ctx.translate(wx,wy);
+      ctx.rotate(n.angle+(wi>=0?n.wisps[wi].dx*0.5:0));
+      var walpha=wi<0?n.alpha*1.8:n.alpha*(0.5+wscale*0.6);
+      var g=ctx.createRadialGradient(0,0,0,0,0,mr);
+      g.addColorStop(0,"hsla("+wh+","+n.sat+"%,65%,"+(walpha*2.2)+")");
+      g.addColorStop(0.2,"hsla("+((wh+15)%360)+","+n.sat+"%,50%,"+(walpha*1.4)+")");
+      g.addColorStop(0.5,"hsla("+((wh+35)%360)+","+~~(n.sat*0.8)+"%,32%,"+(walpha*0.6)+")");
+      g.addColorStop(0.8,"hsla("+wh+","+~~(n.sat*0.5)+"%,18%,"+(walpha*0.15)+")");
+      g.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle=g;
+      ctx.scale(wrx/mr,wry/mr);
+      ctx.beginPath();ctx.arc(0,0,mr,0,6.28);ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+/* === GALAXIES === */
+var galaxies=[];
+function initGalaxies(){
+  galaxies=[];
+  for(var i=0;i<10;i++){
+    galaxies.push({
+      x:(Math.random()*1.8-0.4)*W, y:(Math.random()*1.8-0.4)*H, // extends beyond screen
+      r:40+Math.random()*50,        // overall radius
+      angle:Math.random()*6.28,     // tilt
+      spin:0.00003+Math.random()*0.00004, // very slow rotation
+      arms:2+Math.floor(Math.random()*2), // 2-3 arms
+      hue:Math.floor(Math.random()*360),
+      alpha:0.14+Math.random()*0.1,
+      starCount:40+Math.floor(Math.random()*40),
+      stars:[] // populated below
+    });
+  }
+  // pre-generate star positions for each galaxy (polar coords)
+  for(var i=0;i<galaxies.length;i++){
+    var g=galaxies[i];
+    for(var s=0;s<g.starCount;s++){
+      var arm=Math.floor(Math.random()*g.arms);
+      var t=0.15+Math.random()*0.85; // 0=center 1=edge
+      var spread=(1-t)*0.8+0.1;      // tighter near edge
+      var baseAng=(arm/g.arms)*6.28 + t*4.5; // spiral sweep
+      var jitter=(Math.random()-0.5)*spread*1.5;
+      g.stars.push({
+        t:t, ang:baseAng+jitter,
+        size:Math.random()<0.15?1.2:0.5+Math.random()*0.5,
+        brightness:0.5+Math.random()*0.5,
+        hueShift:(Math.random()-0.5)*60
+      });
+    }
+  }
+}
+function drawGalaxies(t){
+  for(var i=0;i<galaxies.length;i++){
+    var g=galaxies[i];
+    g.angle+=g.spin;
+    ctx.save();
+    ctx.translate(g.x,g.y);
+    ctx.rotate(g.angle);
+    ctx.scale(1,0.38); // flatten into disc shape
+
+    // bright core — more visible
+    var core=ctx.createRadialGradient(0,0,0,0,0,g.r*0.4);
+    core.addColorStop(0,"hsla("+g.hue+",80%,90%,"+(g.alpha*2.5)+")");
+    core.addColorStop(0.3,"hsla("+g.hue+",70%,70%,"+(g.alpha*1.5)+")");
+    core.addColorStop(0.7,"hsla("+((g.hue+30)%360)+",55%,45%,"+(g.alpha*0.6)+")");
+    core.addColorStop(1,"hsla("+g.hue+",40%,20%,0)");
+    ctx.fillStyle=core;
+    ctx.beginPath();ctx.arc(0,0,g.r*0.4,0,6.28);ctx.fill();
+
+    // dust halo — more visible
+    var halo=ctx.createRadialGradient(0,0,g.r*0.1,0,0,g.r);
+    halo.addColorStop(0,"hsla("+((g.hue+20)%360)+",60%,50%,"+(g.alpha*0.55)+")");
+    halo.addColorStop(0.4,"hsla("+g.hue+",45%,30%,"+(g.alpha*0.28)+")");
+    halo.addColorStop(1,"hsla("+g.hue+",30%,12%,0)");
+    ctx.fillStyle=halo;
+    ctx.beginPath();ctx.arc(0,0,g.r,0,6.28);ctx.fill();
+
+    // individual arm stars
+    for(var s=0;s<g.stars.length;s++){
+      var st=g.stars[s];
+      var r2=st.t*g.r;
+      var sx=Math.cos(st.ang)*r2,sy=Math.sin(st.ang)*r2;
+      var sa=g.alpha*st.brightness*1.8;
+      ctx.fillStyle="hsla("+((g.hue+st.hueShift+360)%360)+",80%,85%,"+sa+")";
+      ctx.beginPath();ctx.arc(sx,sy,st.size,0,6.28);ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
+
+function triggerBlackHole(){
+  blackHole.active=true;blackHole.t=0;blackHole.devourT=0;blackHole.done=false;
+  paused=false;
+  // flash the screen white briefly
+  blackHole.flash=1.0;
+  disturb(sun.x,sun.y,8);
+  addRing(sun.x,sun.y,3);addRing(sun.x,sun.y,4);
+  try{if(navigator.vibrate)navigator.vibrate([80,40,80]);}catch(e){}
+}
+
+function drawBlackHole(t){
+  var sx=sun.x,sy=sun.y;
+  var phase=Math.min(1,blackHole.t/600); // collapse in 0.6s
+
+  // Sun shrinks and implodes to a point
+  var R=sun.r*(1-phase*0.95);
+
+  if(phase<1){
+    // collapsing sun — shrinks rapidly, brightens white then vanishes
+    var brightness=1-phase*0.7;
+    var sg=ctx.createRadialGradient(sx,sy,0,sx,sy,R);
+    sg.addColorStop(0,"rgba(255,255,255,"+(brightness*0.95)+")");
+    sg.addColorStop(0.3,"rgba(255,220,180,"+(brightness*0.9)+")");
+    sg.addColorStop(1,"rgba(255,150,50,"+(brightness*0.7)+")");
+    ctx.fillStyle=sg;ctx.beginPath();ctx.arc(sx,sy,Math.max(0.5,R),0,6.28);ctx.fill();
+    // bright flash ring expanding out
+    var ringR=phase*sun.r*3;
+    var rg=ctx.createRadialGradient(sx,sy,ringR*0.7,sx,sy,ringR);
+    rg.addColorStop(0,"rgba(255,200,100,"+(0.4*(1-phase))+")");
+    rg.addColorStop(1,"rgba(255,150,50,0)");
+    ctx.fillStyle=rg;ctx.beginPath();ctx.arc(sx,sy,ringR,0,6.28);ctx.fill();
+  } else {
+    // singularity — just a tiny glowing point
+    var glow=0.5+Math.sin(t*0.02)*0.3;
+    var pg=ctx.createRadialGradient(sx,sy,0,sx,sy,8);
+    pg.addColorStop(0,"rgba(255,255,255,"+glow+")");
+    pg.addColorStop(0.4,"rgba(200,150,255,"+(glow*0.4)+")");
+    pg.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=pg;ctx.beginPath();ctx.arc(sx,sy,8,0,6.28);ctx.fill();
+  }
+}
+
+function updateBlackHole(dt){
+  if(!blackHole.active)return;
+  blackHole.t+=dt;
+  // phase 1: 0-2s — sun collapses inward
+  // phase 2: 2-5s — black hole devours all orbs one by one
+  // phase 3: 5-8s — fabric distortion + game over screen appears
+  if(blackHole.t>600&&!blackHole.done){
+    blackHole.devourT+=dt;
+    if(blackHole.devourT>80){ // eat one orb every 80ms — rapid fire
+      blackHole.devourT=0;
+      var eaten=false;
+      for(var i=0;i<orbs.length;i++){
+        if(!orbs[i].dead&&!orbs[i].suctioning){
+          orbs[i].suctioning=true;orbs[i].suctionT=0;orbs[i].suctionSpeed=60; // fast BH devour
+          // apply penalty for each devoured orb
+          orbsEaten++;score-=10;scorePenalty=1;
+          penaltyPops.push({x:sun.x+(Math.random()-0.5)*30,y:sun.y-sun.r-10,vy:0,life:1,val:10});
+          eaten=true;break;
+        }
+      }
+      if(!eaten){
+        // only mark done if no orbs are still mid-suction
+        var stillSuctioning=false;
+        for(var si=0;si<orbs.length;si++){if(!orbs[si].dead&&orbs[si].suctioning)stillSuctioning=true;}
+        if(!stillSuctioning)blackHole.done=true;
+      }
+    }
+  }
+  if(blackHole.done&&blackHole.t>4000&&!chillMode){
+    endGame();
+    blackHole.active=false;
+  }
+  // safety: if BH active but no orbs and nothing suctioning, just end cleanly
+  if(blackHole.active&&blackHole.t>1500&&!blackHole.done){
+    var anyAlive=false;
+    for(var _i=0;_i<orbs.length;_i++){if(!orbs[_i].dead)anyAlive=true;}
+    if(!anyAlive)blackHole.done=true;
+  }
+}
+
+function updateSun(dt){var dx=sun.homeX-sun.x,dy=sun.homeY-sun.y;sun.vx+=dx*0.000003*dt;sun.vy+=dy*0.000003*dt;sun.vx*=0.998;sun.vy*=0.998;sun.x+=sun.vx*dt*TS;sun.y+=sun.vy*dt*TS;var m=sun.r*0.5;if(sun.x<-m){sun.x=-m;sun.vx=Math.abs(sun.vx)*0.3;}if(sun.x>W+m){sun.x=W+m;sun.vx=-Math.abs(sun.vx)*0.3;}if(sun.y<-m){sun.y=-m;sun.vy=Math.abs(sun.vy)*0.3;}if(sun.y>H+m){sun.y=H+m;sun.vy=-Math.abs(sun.vy)*0.3;}}
+function drawSun(t){
+  // BLACK HOLE MODE
+  if(blackHole.active){
+    drawBlackHole(t);return;
+  }
+  sun.glow=sun.glow||0;sun.glow*=0.92; // decay sun flash
+var sx=sun.x,sy=sun.y,R=sun.r*(1+Math.sin(t*0.0007)*0.02+(sun.glow||0)*0.06);
+
+  // warm outer glow
+  var g3=ctx.createRadialGradient(sx,sy,0,sx,sy,R*6);
+  g3.addColorStop(0,"rgba(255,200,80,0.07)");
+  g3.addColorStop(0.4,"rgba(255,120,40,0.015)");
+  g3.addColorStop(1,"rgba(255,80,20,0)");
+  ctx.fillStyle=g3;ctx.beginPath();ctx.arc(sx,sy,R*6,0,6.28);ctx.fill();
+
+  ctx.save();ctx.translate(sx,sy);
+
+  // soft corona tendril blobs — orange, slow
+  for(var i=0;i<8;i++){
+    var ang=i*0.785+Math.sin(t*0.0003+i*1.7)*0.3;
+    var len=R*(1.4+Math.sin(t*0.0005+i*2.3)*0.35);
+    var ex=Math.cos(ang)*len,ey=Math.sin(ang)*len;
+    var cg=ctx.createRadialGradient(0,0,R*0.8,ex*0.5,ey*0.5,len*0.65);
+    cg.addColorStop(0,"rgba(255,160,60,0.07)");
+    cg.addColorStop(1,"rgba(255,100,30,0)");
+    ctx.fillStyle=cg;ctx.beginPath();ctx.arc(ex*0.4,ey*0.4,len*0.5,0,6.28);ctx.fill();
+  }
+
+  // 8 soft rounded spikes — hint of danger, not aggressive
+  for(var i=0;i<8;i++){
+    var ang=i*0.785+t*0.00015;
+    var wobble=Math.sin(t*0.0006+i*1.9)*0.2;
+    var len=R*(1.3+wobble+(i%2===0?0.15:0));
+    var ex=Math.cos(ang)*len,ey=Math.sin(ang)*len;
+    var perpX=Math.cos(ang+Math.PI/2)*R*0.06;
+    var perpY=Math.sin(ang+Math.PI/2)*R*0.06;
+    ctx.beginPath();
+    ctx.moveTo(perpX*1.5,perpY*1.5);
+    ctx.quadraticCurveTo(ex*0.7+perpX*2,ey*0.7+perpY*2,ex,ey);
+    ctx.quadraticCurveTo(ex*0.7-perpX*2,ey*0.7-perpY*2,-perpX*1.5,-perpY*1.5);
+    ctx.closePath();
+    ctx.fillStyle="rgba(255,150,40,"+(0.06+wobble*0.03)+")";
+    ctx.fill();
+  }
+
+  ctx.restore();
+
+  // inner body — color shifts with mass accumulation
+  // STELLAR EVOLUTION: bright yellow to red giant to neutron star to black hole
+  var mp=sun.mass/sun.maxMass; // 0..1
+  var coreR,coreG,coreB,mid1R,mid1G,mid1B,mid2R,mid2G,mid2B,rimR,rimG,rimB,edgeR,edgeG,edgeB;
+  if(mp<0.35){
+    var sp=mp/0.35;
+    coreR=255;coreG=~~(252-sp*15);coreB=~~(180+sp*30);
+    mid1R=255;mid1G=~~(220-sp*25);mid1B=~~(100+sp*20);
+    mid2R=255;mid2G=~~(175-sp*25);mid2B=~~(50);
+    rimR=235;rimG=~~(130-sp*20);rimB=25;
+    edgeR=~~(190-sp*15);edgeG=80;edgeB=15;
+  } else if(mp<0.82){
+    // RED GIANT — pure orange to deep crimson, zero blue
+    var sp=(mp-0.38)/0.44;
+    coreR=255;coreG=~~(230-sp*150);coreB=0;
+    mid1R=255;mid1G=~~(160-sp*140);mid1B=0;
+    mid2R=~~(245-sp*60);mid2G=~~(80-sp*70);mid2B=0;
+    rimR=~~(180-sp*90);rimG=~~(30-sp*20);rimB=0;
+    edgeR=~~(80-sp*40);edgeG=5;edgeB=0;
+  } else {
+    // NEUTRON STAR — blue-white, starts after red giant collapses
+    var sp=(mp-0.82)/0.18;
+    coreR=~~(255-sp*100);coreG=~~(100+sp*155);coreB=255;
+    mid1R=~~(210-sp*100);mid1G=~~(60+sp*180);mid1B=255;
+    mid2R=~~(130-sp*60);mid2G=~~(30+sp*195);mid2B=255;
+    rimR=50;rimG=~~(20+sp*200);rimB=255;
+    edgeR=15;edgeG=~~(10+sp*160);edgeB=~~(210+sp*45);
+  }
+  // inner body with sunspots, convection, plasma loops
+  ctx.save();ctx.translate(sx,sy);
+  ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.clip();
+
+  // base color
+  var gc=ctx.createRadialGradient(-R*0.12,-R*0.12,0,0,0,R);
+  gc.addColorStop(0,"rgba("+coreR+","+coreG+","+coreB+",0.97)");
+  gc.addColorStop(0.2,"rgba("+mid1R+","+mid1G+","+mid1B+",0.95)");
+  gc.addColorStop(0.5,"rgba("+mid2R+","+mid2G+","+mid2B+",0.9)");
+  gc.addColorStop(0.8,"rgba("+rimR+","+rimG+","+rimB+",0.85)");
+  gc.addColorStop(1,"rgba("+edgeR+","+edgeG+","+edgeB+",0.75)");
+  ctx.fillStyle=gc;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
+
+  // convection cells - bright granules
+  for(var ci=0;ci<8;ci++){
+    var ca=t*0.00008+ci*0.785;
+    var cr=R*(0.2+Math.sin(ci*1.3)*0.08);
+    var cx2=Math.cos(ca)*R*0.38,cy2=Math.sin(ca+0.4)*R*0.32;
+    var bright=ctx.createRadialGradient(cx2,cy2,0,cx2,cy2,cr);
+    bright.addColorStop(0,"rgba("+Math.min(255,coreR+20)+","+Math.min(255,coreG+18)+","+coreB+",0.2)");
+    bright.addColorStop(1,"rgba("+coreR+","+coreG+","+coreB+",0)");
+    ctx.fillStyle=bright;ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();
+  }
+
+  // plasma loop filaments
+  ctx.strokeStyle="rgba("+Math.min(255,coreR+15)+","+Math.min(255,coreG+10)+","+~~(coreB*0.6)+",0.16)";
+  ctx.lineWidth=R*0.022;ctx.lineCap="round";
+  for(var pi=0;pi<4;pi++){
+    var pa=t*0.00012+pi*1.571;
+    var px1=Math.cos(pa)*R*0.5,py1=Math.sin(pa)*R*0.5;
+    var px2=Math.cos(pa+0.75)*R*0.58,py2=Math.sin(pa+0.75)*R*0.58;
+    var cpx=Math.cos(pa+0.38)*R*0.82,cpy=Math.sin(pa+0.38)*R*0.82;
+    ctx.beginPath();ctx.moveTo(px1,py1);ctx.quadraticCurveTo(cpx,cpy,px2,py2);ctx.stroke();
+  }
+  ctx.lineCap="butt";
+
+  // limb darkening
+  var ld=ctx.createRadialGradient(0,0,R*0.5,0,0,R);
+  ld.addColorStop(0,"rgba(0,0,0,0)");
+  ld.addColorStop(0.65,"rgba(0,0,0,0.06)");
+  ld.addColorStop(1,"rgba(0,0,0,0.5)");
+  ctx.fillStyle=ld;ctx.beginPath();ctx.arc(0,0,R,0,6.28);ctx.fill();
+  ctx.restore();
+
+  // warm golden rim
+  ctx.strokeStyle="rgba(255,190,80,0.3)";ctx.lineWidth=0.8;
+  ctx.beginPath();ctx.arc(sx,sy,R,0,6.28);ctx.stroke();
+}
+
+function drawPuck(){
+  var dep=well.depth;
+
+  // ── FINGER TRAIL ──
+  if(well.trail.length>1){
+    ctx.lineCap="round";
+    for(var ti=1;ti<well.trail.length;ti++){
+      var ta=well.trail[ti-1],tb=well.trail[ti];
+      var fade=1-tb.age;
+      var tdep=(ta.dep+tb.dep)*0.5;
+      ctx.strokeStyle="rgba(180,100,255,"+(fade*fade*(0.15+tdep*0.3))+")";
+      ctx.lineWidth=1+tdep*2;
+      ctx.beginPath();ctx.moveTo(ta.x,ta.y);ctx.lineTo(tb.x,tb.y);ctx.stroke();
+    }
+    ctx.lineCap="butt";
+  }
+
+  if(dep<=0.01)return;
+  var x=well.x,y=well.y;
+  disturb(x,y,0.4*dep);
+
+  // small tight inner glow — just around fingertip, doesn't cover fabric
+  var glowR=28+dep*22; // max 50px — visible but not obstructive
+  var glow=ctx.createRadialGradient(x,y,0,x,y,glowR);
+  glow.addColorStop(0,"rgba(200,120,255,"+(0.1+dep*0.18)+")");
+  glow.addColorStop(0.5,"rgba(160,80,255,"+(0.04+dep*0.08)+")");
+  glow.addColorStop(1,"rgba(120,50,200,0)");
+  ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,glowR,0,6.28);ctx.fill();
+
+  // 2 tight rings showing depth — small enough fabric still shows around them
+  var rings=[{r:32+dep*14,minDep:0},{r:20+dep*8,minDep:0.2}];
+  for(var ri=0;ri<rings.length;ri++){
+    var rg=rings[ri];
+    if(dep<rg.minDep)continue;
+    var rd=(dep-rg.minDep)/Math.max(0.01,1-rg.minDep);
+    ctx.strokeStyle="rgba(200,130,255,"+(0.2+rd*0.4)+")";
+    ctx.lineWidth=0.7+rd*0.6;
+    ctx.beginPath();ctx.arc(x,y,rg.r,0,6.28);ctx.stroke();
+  }
+
+  // tiny bright center dot — shows exact touch point
+  var dotR=3+dep*5;
+  var cg=ctx.createRadialGradient(x,y,0,x,y,dotR);
+  cg.addColorStop(0,"rgba(240,200,255,"+(0.6+dep*0.4)+")");
+  cg.addColorStop(1,"rgba(180,80,255,0)");
+  ctx.fillStyle=cg;ctx.beginPath();ctx.arc(x,y,dotR,0,6.28);ctx.fill();
+
+  // radiating fabric lines — subtle distortion indicator
+  if(dep>0.15){
+    ctx.strokeStyle="rgba(180,100,255,"+(dep*0.15)+")";
+    ctx.lineWidth=0.4;
+    for(var ri2=0;ri2<4;ri2++){
+      var ra=ri2*1.571+well.holdTime*0.0005;
+      var rl=glowR*(1.2+dep*0.5);
+      ctx.beginPath();ctx.moveTo(x+Math.cos(ra)*dotR,y+Math.sin(ra)*dotR);
+      ctx.lineTo(x+Math.cos(ra)*rl,y+Math.sin(ra)*rl);ctx.stroke();
+    }
+  }
+}
+
+// 8 planet archetypes — each with unique visual identity
+var PTYPES=[
+  // 0: rocky — dark grey/brown, heavy craters, no atmosphere
+  {name:"rocky",  ring:false, atmo:null,
+   base:[90,75,65], dark:[40,30,25], hi:[160,140,120],
+   craters:true, bands:0, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 1: terrestrial — blue-green oceans, patchy clouds, green land
+  {name:"terr",   ring:false, atmo:[120,180,255],
+   base:[50,110,200], dark:[20,50,100], hi:[180,220,255],
+   craters:false, bands:0, cloudSwirl:true, alien:false, iceCapWhite:true, rare:false},
+  // 2: gas giant — Jupiter style, tan/orange bands
+  {name:"gas",    ring:false, atmo:[255,200,130],
+   base:[220,175,110], dark:[160,100,50], hi:[255,230,180],
+   craters:false, bands:5, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 3: ringed — Saturn style, pale yellow, prominent rings
+  {name:"ringed", ring:true, atmo:null,
+   base:[220,210,160], dark:[150,130,80], hi:[255,248,210],
+   craters:false, bands:3, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 4: ice — pale blue-white, frozen surface, thin atmo
+  {name:"ice",    ring:false, atmo:[180,230,255],
+   base:[190,220,245], dark:[100,150,200], hi:[240,250,255],
+   craters:true, bands:0, cloudSwirl:false, alien:false, iceCapWhite:true, rare:false},
+  // 5: lava — deep red-orange, glowing cracks, volcanic
+  {name:"lava",   ring:false, atmo:[255,80,30],
+   base:[180,40,10], dark:[80,10,5], hi:[255,180,60],
+   craters:false, bands:0, cloudSwirl:false, alien:false, iceCapWhite:false, rare:false},
+  // 6: earth-like (rare) — blue oceans, green continents, white clouds
+  {name:"earth",  ring:false, atmo:[140,200,255],
+   base:[40,100,200], dark:[15,60,30], hi:[200,230,255],
+   craters:false, bands:0, cloudSwirl:true, alien:false, iceCapWhite:true, rare:true},
+  // 7: alien (rare) — deep purple/teal, glowing patches, eerie
+  {name:"alien",  ring:false, atmo:[80,200,180],
+   base:[80,20,120], dark:[30,5,60], hi:[160,80,255],
+   craters:false, bands:2, cloudSwirl:true, alien:true, iceCapWhite:false, rare:true},
+];
+
+function getRandPType(){
+  // rare types (earth, alien) have 5% chance each
+  var r=Math.random();
+  if(r<0.05)return 6; // earth
+  if(r<0.10)return 7; // alien
+  return Math.floor(Math.random()*5); // common types 0-4
+}
+
+/* === LAUNCHER === */
+var launcher={x:0,y:0,pulling:false,pullX:0,pullY:0,nextR:0,nextPT:0,cooldown:0,maxCooldown:2000,launchWindow:0,launchWindowMax:10000,launchNum:0,draggingHandle:false};
+var LAUNCH_ZONE_R=55,MAX_PULL=160,MAX_SPEED=1.0;
+var PLATFORM_R=22; // full circle platform radius
+var BND_R=700; // world boundary ring radius
+var CAM_MAX_X=500,CAM_MAX_Y=500; // computed in resize()
+function queueNext(){
+  launcher.nextR=6+Math.floor(Math.random()*16);
+  launcher.nextPT=Math.floor(Math.random()*PTYPES.length);
+  launcher.launchNum++;
+  if(chillMode){launcher.cooldown=0;launcher.maxCooldown=1;launcher.launchWindow=0;return;}
+  // cooldown based on how many extra orbs beyond 3 are on the board
+  // 3 orbs = 2s (fast), each extra orb adds 2s, cap at 20s
+  var extra=Math.max(0,liveOrbCount()-3);
+  var cd=Math.min(40000,4000+extra*4000); // doubled — keeps game chill
+  launcher.cooldown=cd;launcher.maxCooldown=cd;
+  // once ready, player has 10s to launch before auto-fire
+  launcher.launchWindow=0;launcher.launchWindowMax=10000;
+}
+
+function launcherWorldPos(){
+  return{x:(launcher.x-W/2+camX)/zoom+W/2,y:(launcher.y-H/2+camY)/zoom+H/2};
+}
+function worldToScreen(wx,wy){
+  return{x:(wx-W/2)*zoom+W/2-camX,y:(wy-H/2)*zoom+H/2-camY};
+}
+function getLaunchParams(){
+  var lwp=launcherWorldPos();
+  var pdx=launcher.pullX-lwp.x,pdy=launcher.pullY-lwp.y;
+  var rawDist=Math.sqrt(pdx*pdx+pdy*pdy);
+  var pullDist=Math.min(rawDist,MAX_PULL);
+  var pullAng=Math.atan2(pdy,pdx);
+  var power=pullDist/MAX_PULL;
+  var launchAng=pullAng+Math.PI;
+  var ldx=lwp.x-sun.x,ldy=lwp.y-sun.y;
+  var launchDist=Math.sqrt(ldx*ldx+ldy*ldy);
+  var idealV=orbV(launcher.nextR||10,Math.max(launchDist,sun.r+20));
+  var minSpd=idealV*0.3;
+  var maxSpd=idealV*1.8;
+  var speed=minSpd+power*(maxSpd-minSpd);
+  return{pullDist:pullDist,pullAng:pullAng,launchAng:launchAng,power:power,speed:speed,
+    orbX:lwp.x+Math.cos(pullAng)*pullDist,orbY:lwp.y+Math.sin(pullAng)*pullDist,
+    vx:Math.cos(launchAng)*speed,vy:Math.sin(launchAng)*speed,
+    wx:lwp.x,wy:lwp.y};
+}
+
+function simulateTraj(sx,sy,vx,vy,steps){
+  var pts=[{x:sx,y:sy}];var x=sx,y=sy,tvx=vx,tvy=vy;
+  for(var i=0;i<steps;i++){
+    for(var s=0;s<3;s++){var dx=sun.x-x,dy=sun.y-y,d=Math.sqrt(dx*dx+dy*dy);if(d<sun.r)return pts;var f=getGM()/(d*d);if(f>0.2)f=0.2;tvx+=dx/d*f*16.67;tvy+=dy/d*f*16.67;x+=tvx*16.67*TS;y+=tvy*16.67*TS;}
+    pts.push({x:x,y:y});
+  }
+  return pts;
+}
+
+function drawLauncherHandle(lx,ly){
+  var trackX=W-24;
+  var trackTop=80;
+  var trackBot=H-80;
+  var handleY=launcher.y;
+  // track line
+  ctx.strokeStyle="rgba(180,220,255,0.14)";ctx.lineWidth=1;
+  ctx.setLineDash([3,6]);
+  ctx.beginPath();ctx.moveTo(trackX,trackTop);ctx.lineTo(trackX,trackBot);ctx.stroke();
+  ctx.setLineDash([]);
+  // connector from platform center to handle
+  ctx.strokeStyle="rgba(180,220,255,0.07)";ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(trackX,handleY);ctx.stroke();
+  // handle pill
+  var hPulse=0.5+Math.sin(time*0.0018)*0.5;
+  ctx.fillStyle="rgba(180,220,255,"+(0.16+hPulse*0.08)+")";
+  ctx.strokeStyle="rgba(180,220,255,"+(0.45+hPulse*0.15)+")";
+  ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.roundRect(trackX-12,handleY-14,24,28,7);ctx.fill();ctx.stroke();
+  // grip lines
+  ctx.strokeStyle="rgba(180,220,255,0.45)";ctx.lineWidth=1;
+  for(var gi=0;gi<3;gi++){
+    var gy=handleY-4+gi*4;
+    ctx.beginPath();ctx.moveTo(trackX-6,gy);ctx.lineTo(trackX+6,gy);ctx.stroke();
+  }
+  // arrows
+  ctx.strokeStyle="rgba(180,220,255,"+(0.3+hPulse*0.2)+")";ctx.lineWidth=1.2;ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(trackX,handleY-22);ctx.lineTo(trackX,handleY-30);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(trackX-4,handleY-26);ctx.lineTo(trackX,handleY-30);ctx.lineTo(trackX+4,handleY-26);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(trackX,handleY+22);ctx.lineTo(trackX,handleY+30);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(trackX-4,handleY+26);ctx.lineTo(trackX,handleY+30);ctx.lineTo(trackX+4,handleY+26);ctx.stroke();
+  ctx.lineCap="butt";
+}
+
+function drawLauncher(t){
+  var lx=launcher.x,ly=launcher.y;
+  var PR=PLATFORM_R; // platform circle radius
+
+  // ── PLATFORM CIRCLE ──
+  // dark fill
+  ctx.fillStyle="rgba(10,12,28,0.7)";
+  ctx.beginPath();ctx.arc(lx,ly,PR,0,6.28);ctx.fill();
+  // outer ring — yellow when ready, red in final 3 seconds (urgency > 0.7)
+  var _uf=(!launcher.pulling&&launcher.cooldown<=0&&launcher.launchWindow>0)?(launcher.launchWindow/launcher.launchWindowMax):-1;
+  var _rc=_uf>0.7?"255,70,40":(_uf>0?"255,200,60":"180,220,255");
+  var _ra=_uf>0.7?(0.5+_uf*0.3):(_uf>0?(0.3+_uf*0.2):0.2);
+  ctx.strokeStyle="rgba("+_rc+","+_ra+")";ctx.lineWidth=_uf>0?1.8:1;
+  ctx.beginPath();ctx.arc(lx,ly,PR,0,6.28);ctx.stroke();
+  // soft glow when ready
+  if(_uf>0){var _rg2=ctx.createRadialGradient(lx,ly,PR,lx,ly,PR+20);_rg2.addColorStop(0,"rgba("+_rc+","+(0.05+_uf*0.08)+")");_rg2.addColorStop(1,"rgba("+_rc+",0)");ctx.fillStyle=_rg2;ctx.beginPath();ctx.arc(lx,ly,PR+20,0,6.28);ctx.fill();}
+  // subtle inner ring
+  ctx.strokeStyle="rgba(180,220,255,0.06)";ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.arc(lx,ly,PR*0.65,0,6.28);ctx.stroke();
+  // crosshair dots at 4 compass points
+  for(var ci=0;ci<4;ci++){var ca=ci*1.571;var cx2=lx+Math.cos(ca)*(PR-4),cy2=ly+Math.sin(ca)*(PR-4);ctx.fillStyle="rgba(180,220,255,0.15)";ctx.beginPath();ctx.arc(cx2,cy2,1.2,0,6.28);ctx.fill();}
+
+  // ── COOLDOWN RING — loading phase (blue fills up) ──
+  if(launcher.cooldown>0){
+    var coolProg=1-(launcher.cooldown/launcher.maxCooldown);
+    var ringR=PR+7;
+    ctx.strokeStyle="rgba(180,220,255,0.08)";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR,0,6.28);ctx.stroke();
+    ctx.strokeStyle="rgba(100,200,255,0.5)";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR,-Math.PI/2,-Math.PI/2+coolProg*6.28);ctx.stroke();
+    var pr2=Math.min(launcher.nextR,PR*0.75);
+    var greyG=ctx.createRadialGradient(lx-pr2*0.2,ly-pr2*0.2,0,lx,ly,pr2);
+    greyG.addColorStop(0,"rgba(110,110,125,0.65)");greyG.addColorStop(1,"rgba(40,40,55,0.55)");
+    ctx.fillStyle=greyG;ctx.beginPath();ctx.arc(lx,ly,pr2,0,6.28);ctx.fill();
+    ctx.strokeStyle="rgba(140,140,160,0.2)";ctx.lineWidth=0.7;ctx.beginPath();ctx.arc(lx,ly,pr2,0,6.28);ctx.stroke();
+    return;
+  }
+
+  // ── LAUNCH WINDOW RING — countdown phase (red drains away) ──
+  if(!chillMode&&launcher.launchWindow>0&&!launcher.pulling){
+    var winProg=1-(launcher.launchWindow/launcher.launchWindowMax);
+    var urgency=launcher.launchWindow/launcher.launchWindowMax; // 0=just opened, 1=about to fire
+    var ringR2=PR+7;
+    // background track
+    ctx.strokeStyle="rgba(255,80,60,0.12)";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR2,0,6.28);ctx.stroke();
+    // remaining time arc — shrinks as urgency grows
+    var rc=urgency>0.6?[255,60,40]:[255,160,60];
+    ctx.strokeStyle="rgba("+rc[0]+","+rc[1]+","+rc[2]+","+(0.4+urgency*0.45)+")";ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(lx,ly,ringR2,-Math.PI/2,-Math.PI/2+winProg*6.28);ctx.stroke();
+    // pulse when urgent
+    if(urgency>0.65){
+      var up=0.5+Math.sin(time*0.012)*0.5;
+      var ug=ctx.createRadialGradient(lx,ly,PR,lx,ly,PR+16);
+      ug.addColorStop(0,"rgba(255,80,40,"+(up*0.1*(urgency-0.5))+")");
+      ug.addColorStop(1,"rgba(255,40,20,0)");
+      ctx.fillStyle=ug;ctx.beginPath();ctx.arc(lx,ly,PR+16,0,6.28);ctx.fill();
+    }
+  }
+
+  // ── READY STATE ──
+  var pr=Math.min(launcher.nextR,PR*0.75)*Math.min(1,zoom); // scale with zoom
+  var previewX=lx,previewY=ly;             // orb always at platform center
+
+  // "READY" indicator — shown when orb is loaded and player hasn't touched yet
+  if(!chillMode&&!launcher.pulling&&launcher.launchWindow<launcher.launchWindowMax){
+    var readyPulse=0.5+Math.sin(time*0.004)*0.3;
+    // urgency-based color: green when fresh, shifts to red
+    var urgFrac=launcher.launchWindow/launcher.launchWindowMax;
+    var readyCol=urgFrac<0.5?"rgba(100,255,160,"+readyPulse+")":"rgba(255,"+(~~(160-urgFrac*160))+",60,"+readyPulse+")";
+    ctx.font="bold 9px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="bottom";
+    ctx.fillStyle=readyCol;
+    ctx.fillText(urgFrac>0.6?"LAUNCH!":"READY",lx,ly-PR-10);
+    ctx.textAlign="left";ctx.textBaseline="top";
+  }
+
+  // needs-more glow + X/3 badge
+  var needMore=liveOrbCount()<3&&!launcher.pulling;
+  if(needMore){
+    var pulse=0.5+Math.sin(time*0.003)*0.35;
+    var pg2=ctx.createRadialGradient(lx,ly,0,lx,ly,LAUNCH_ZONE_R);
+    pg2.addColorStop(0,'rgba(255,200,80,'+(pulse*0.12)+')');pg2.addColorStop(1,'rgba(255,200,80,0)');
+    ctx.fillStyle=pg2;ctx.beginPath();ctx.arc(lx,ly,LAUNCH_ZONE_R,0,6.28);ctx.fill();
+    var nn=liveOrbCount();
+    ctx.font='bold 11px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillStyle='rgba(255,200,80,'+(0.4+pulse*0.3)+')';
+    ctx.fillText(nn+'/3',lx,ly-PR-8);
+    ctx.textAlign='left';ctx.textBaseline='top';
+  }
+
+  if(launcher.pulling){
+    var lp=getLaunchParams();
+    var pullSc=worldToScreen(lp.orbX,lp.orbY);
+    previewX=pullSc.x;previewY=pullSc.y;
+    var power=lp.power;
+    var lineCol=l3([100,200,255],[255,160,60],power);
+
+    ctx.strokeStyle=rgba(lineCol,0.35+power*0.45);
+    ctx.lineWidth=1.5+power*1.0;ctx.lineCap="round";
+    ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(previewX,previewY);ctx.stroke();
+    ctx.lineCap="butt";
+
+    var numPts=Math.floor(18+power*55);
+    var traj=simulateTraj(lp.wx,lp.wy,lp.vx,lp.vy,numPts);
+    if(traj.length>2){
+      for(var i=1;i<traj.length;i++){
+        var fade=1-(i/traj.length);
+        var alpha=fade*fade*(0.2+power*0.45);
+        if(alpha<0.01)continue;
+        var ta=worldToScreen(traj[i-1].x,traj[i-1].y);
+        var tb=worldToScreen(traj[i].x,traj[i].y);
+        ctx.strokeStyle=rgba(lineCol,alpha);
+        ctx.lineWidth=Math.max(0.3,1.4*fade);
+        ctx.beginPath();ctx.moveTo(ta.x,ta.y);ctx.lineTo(tb.x,tb.y);ctx.stroke();
+      }
+      var last=traj[traj.length-1];
+      var lastSc=worldToScreen(last.x,last.y);
+      ctx.fillStyle=rgba(lineCol,0.2+power*0.25);
+      ctx.beginPath();ctx.arc(lastSc.x,lastSc.y,2+power*2.5,0,6.28);ctx.fill();
+    }
+
+    if(power>0.08){
+      var pg=ctx.createRadialGradient(previewX,previewY,pr,previewX,previewY,pr+5+power*16);
+      pg.addColorStop(0,rgba(lineCol,0.08+power*0.14));pg.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle=pg;ctx.beginPath();ctx.arc(previewX,previewY,pr+5+power*16,0,6.28);ctx.fill();
+    }
+  }
+
+  // ── PREVIEW PLANET (at pull position or platform center) ──
+  var pc=stabCol(0),pt=PTYPES[launcher.nextPT];
+  var tintC=pt.base||[150,150,150];var hiC=pt.hi||[220,220,220];
+  var mg=ctx.createRadialGradient(previewX-pr*0.2,previewY-pr*0.2,0,previewX,previewY,pr);
+  mg.addColorStop(0,'rgba('+hiC[0]+','+hiC[1]+','+hiC[2]+',0.9)');mg.addColorStop(0.5,'rgba('+tintC[0]+','+tintC[1]+','+tintC[2]+',0.85)');mg.addColorStop(1,'rgba('+~~(tintC[0]*0.3)+','+~~(tintC[1]*0.3)+','+~~(tintC[2]*0.3)+',0.9)');
+  ctx.fillStyle=mg;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.fill();
+  ctx.strokeStyle='rgba('+hiC[0]+','+hiC[1]+','+hiC[2]+',0.35)';ctx.lineWidth=0.8;ctx.beginPath();ctx.arc(previewX,previewY,pr,0,6.28);ctx.stroke();
+  if(pt.ring){ctx.save();ctx.translate(previewX,previewY);ctx.scale(1,0.2);ctx.strokeStyle='rgba('+tintC[0]+','+tintC[1]+','+tintC[2]+',0.25)';ctx.lineWidth=pr*0.1;ctx.beginPath();ctx.arc(0,0,pr*1.7,0,6.28);ctx.stroke();ctx.restore();}
+
+  drawLauncherHandle(lx,ly);
+}
+
+function autoLaunch(){
+  if(blackHole.active||blackHole.done)return;
+  var r=launcher.nextR;
+  var lwp=launcherWorldPos();
+  var dx=sun.x-lwp.x,dy=sun.y-lwp.y;
+  var spread=(Math.random()-0.5)*0.4;
+  var ang=Math.atan2(dy,dx)+spread;
+  var speed=0.5+Math.random()*0.4;
+  var vx=Math.cos(ang)*speed,vy=Math.sin(ang)*speed;
+  orbs.push(makeOrb(lwp.x,lwp.y,vx,vy,r,false,launcher.nextPT));
+  _orbsLaunched++;
+  disturb(lwp.x,lwp.y,3);
+  addRing(lwp.x,lwp.y,1.2);
+  launcherIdleTime=0;launcherIdleRings=[];
+  launcher.launchWindow=0;
+  queueNext();
+}
+
+function launchPlanet(){
+  var lp=getLaunchParams();
+  if(lp.pullDist<15)return;
+  var r=launcher.nextR;
+  orbs.push(makeOrb(lp.wx,lp.wy,lp.vx,lp.vy,r,false,launcher.nextPT));_orbsLaunched++;
+  scrShake.mag=Math.max(scrShake.mag,2.5);
+  disturb(lp.wx,lp.wy,2+lp.power*2);
+  launcherIdleTime=0;launcherIdleRings=[];
+  launcher.launchWindow=0;
+  queueNext();
+}
+
+/* === ORBS (same as v23-25) === */
+var orbs=[];var TRAIL_LEN=2400;
+var _frameN=0; // frame counter for caching
+var _frameN=0; // frame counter for throttling
+function initOrbs(){
+  orbs=[];
+  var sa=Math.min(W,H);
+  // start with exactly 3 planets in stable orbits
+  var cfgs=[{r:9,d:sa*0.12+45,pt:0},{r:13,d:sa*0.22+45,pt:2},{r:11,d:sa*0.33+45,pt:4}];
+  for(var i=0;i<cfgs.length;i++){
+    var c=cfgs[i],ang=i*(6.28/3)+Math.random()*0.3,v=orbV(c.r,c.d);
+    orbs.push(makeOrb(sun.x+Math.cos(ang)*c.d,sun.y+Math.sin(ang)*c.d,-Math.sin(ang)*v,Math.cos(ang)*v,c.r,false,c.pt));
+  }
+}
+function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:im?0.001:(Math.random()<0.12?-1:1)*(0.001+Math.random()*0.002),glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,eccSmooth:1,isCircular:false,ptype:PTYPES[pt],craterSeeds:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,axialTilt:im?0:(Math.random()<0.15?1.2+Math.random()*0.35:Math.random()*0.35),colorVar:im?[0,0,0]:[(Math.random()-0.5)*30,(Math.random()-0.5)*25,(Math.random()-0.5)*25],idleTime:Math.random()*3000,suctioning:false,suctionT:0,_leaderCache:null,_leaderFrame:-99,_trailAcc:0,_orbPSmooth:undefined};}
+function respawnOrb(o){var sa=Math.min(W,H),d=sa*(0.1+Math.random()*0.3)+35,ang=Math.random()*6.28,v=orbV(o.baseR,d);o.x=sun.x+Math.cos(ang)*d;o.y=sun.y+Math.sin(ang)*d;o.vx=-Math.sin(ang)*v;o.vy=Math.cos(ang)*v;o.dead=false;o.respawnTimer=0;o.glow=0.5;o.trail=[];o.instability=0;o.suctioning=false;o.suctionT=0;o.r=o.baseR;}
+function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);// 4 sub-steps for accurate orbital integration (no force cap)
+var subDt=dt/4;
+for(var _s=0;_s<4;_s++){
+  var _dx=sun.x-o.x,_dy=sun.y-o.y,_dd=Math.sqrt(_dx*_dx+_dy*_dy);
+  if(_dd<sun.r*0.5)break;
+  var _f=getGM()/(_dd*_dd); // no cap — real Kepler
+  o.vx+=_dx/_dd*_f*subDt;o.vy+=_dy/_dd*_f*subDt;
+  o.x+=o.vx*subDt*TS;o.y+=o.vy*subDt*TS;
+}
+// re-calc dx/dy/dd AFTER sub-steps — old values are stale
+var dx=sun.x-o.x,dy=sun.y-o.y;
+var dd=Math.sqrt(dx*dx+dy*dy);
+var _radV=dd>1?(o.vx*(-dx/dd)+o.vy*(-dy/dd)):1;
+var _sunCollide=blackHole.active?15:sun.r*0.72;
+
+// GRAZING DRAG — planet overlapping sun surface slows down but doesn't immediately absorb
+// allows very fast tangential passes to escape, but marginal ones get caught
+if(!o.suctioning&&dd<sun.r+o.baseR&&dd>_sunCollide+o.baseR*0.6){
+  var overlap=1-((dd-_sunCollide-o.baseR*0.6)/(sun.r+o.baseR-_sunCollide-o.baseR*0.6));
+  var dragFactor=1-overlap*0.12; // up to 12% speed reduction per frame while grazing
+  o.vx*=dragFactor;o.vy*=dragFactor;
+}
+
+// trigger suction if falling in, OR if already inside sun (escaped sub-step guard)
+if(!o.suctioning&&(dd<_sunCollide+o.baseR*0.6&&_radV>0.02||dd<(blackHole.active?20:sun.r*0.6))){
+  o.suctioning=true;o.suctionT=0;
+  disturb(sun.x,sun.y,1.5);
+  try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
+}
+if(o.suctioning){
+  o.suctionT+=dt/100; // 100ms — just fade and die at edge
+  var st=o.suctionT;
+  // stays in place, just shrinks and fades
+  o.vx*=0.7;o.vy*=0.7;
+  o.r=o.baseR*Math.max(0,1-st);
+  o.alpha=Math.max(0,1-st);
+  if(o.suctionT>=1){
+    o.x=o.x;o.y=o.y; // dies where it is, at sun edge
+    o.dead=true;o.respawnTimer=0;
+    orbsEaten++;fbLog('orb_eaten',{count:orbsEaten,penalty:10,score:score});
+    var massGain=Math.max(0.3,o.baseR/30);
+    if(!chillMode){
+      var _prevMp=sun.mass/sun.maxMass;
+      var _prevPhase=_prevMp<0.38?0:_prevMp<0.82?1:2; // save BEFORE update
+      sun.mass=Math.min(sun.maxMass,sun.mass+massGain);
+      // Stellar evolution radius + phase transition flashes
+    var _mp2=sun.mass/sun.maxMass;
+    if(_mp2<0.38){ sun.r=SUN_BASE_R+sun.mass*0.5; }
+    else if(_mp2<0.82){ var _rg=(_mp2-0.38)/0.44; sun.r=SUN_BASE_R*1.1+_rg*SUN_BASE_R*1.1; }
+    else { var _ns=((_mp2-0.82)/0.18); sun.r=SUN_BASE_R*(2.4-_ns*1.8); }
+    // flash on phase crossings
+    var _newPhase=_mp2<0.38?0:_mp2<0.82?1:2;
+    if(_newPhase!==_prevPhase){
+      blackHole.flash=(_newPhase===2)?1.0:0.6; // bigger flash for neutron star
+      disturb(sun.x,sun.y,5);addRing(sun.x,sun.y,2.5);addRing(sun.x,sun.y,1.8);
+    }
+      if(sun.mass>=sun.maxMass&&!blackHole.active&&!blackHole.done)triggerBlackHole();
+    }
+    score-=10;scorePenalty=1;
+    penaltyPops.push({x:sun.x+(Math.random()-0.5)*20,y:sun.y-sun.r-8,vy:0,life:1,val:10});
+    sun.glow=(sun.glow||0)+0.4;
+    scrShake.mag=Math.max(scrShake.mag,5);
+    return;
+  }
+  return;
+}var spd=Math.sqrt(o.vx*o.vx+o.vy*o.vy);var ideal=idealSpeed(Math.max(dd,20));var sr=spd/Math.max(ideal,0.01);var nx=dx/dd,ny=dy/dd;var rF=Math.abs(o.vx*(-nx)+o.vy*(-ny))/(Math.abs(o.vx*(-nx)+o.vy*(-ny))+Math.abs(o.vx*(-ny)+o.vy*(nx))+0.001);o.instability+=(Math.min(1.5,Math.abs(sr-1)*1.5+rF*0.8)-o.instability)*0.004*dt;
+// eccentricity — 0=circle, 1=parabola. uses vis-viva + angular momentum
+var _edx=o.x-sun.x,_edy=o.y-sun.y,_er=Math.sqrt(_edx*_edx+_edy*_edy);
+var _ev2=o.vx*o.vx+o.vy*o.vy,_eGM=getGM();
+var _eEps=_ev2/2-_eGM/Math.max(_er,1);
+var _eH=_edx*o.vy-_edy*o.vx;
+var _ecc=(_eEps<0)?Math.sqrt(Math.max(0,1+2*_eEps*_eH*_eH/(_eGM*_eGM))):1;
+o.eccSmooth=o.eccSmooth===undefined?_ecc:o.eccSmooth*0.90+_ecc*0.10;
+// orbit closure — dog catches tail: trail tail meets planet after one revolution
+// _orbP smoothed so expiry isn't thrown off by instantaneous radius swings in elliptical orbits
+var _orbPInst=6.283*Math.sqrt(dd*dd*dd/(getGM()*TS));
+o._orbPSmooth=o._orbPSmooth!==undefined?o._orbPSmooth*0.92+_orbPInst*0.08:_orbPInst;
+var _orbP=o._orbPSmooth;
+// Loop detection: does the leader line (future path) cross the stored trail (past path)?
+// This matches exactly what the player sees — no ecc gating, no timing assumptions.
+// Sample ~40 leader pts vs ~60 trail pts for perf (~2400 checks max).
+var _closeT=0;
+if(o._leaderPts&&o._leaderPts.length>10&&o.trail.length>=20){
+  var _lpts=o._leaderPts;
+  var _touchR=Math.max(18,o.r*2.0+6);
+  var _touchR2=_touchR*_touchR;
+  var _lStep=Math.max(1,Math.floor((_lpts.length-8)/40));
+  var _trEnd=Math.floor(o.trail.length*0.75);
+  var _trStep=Math.max(1,Math.floor(_trEnd/60));
+  var _bestD2=Infinity;
+  var _found=false;
+  for(var _li=8;_li<_lpts.length&&!_found;_li+=_lStep){
+    var _lp=_lpts[_li];
+    for(var _ti=0;_ti<_trEnd&&!_found;_ti+=_trStep){
+      var _tp=o.trail[_ti];
+      var _dx2=_lp.x-_tp.x,_dy2=_lp.y-_tp.y;
+      var _d2=_dx2*_dx2+_dy2*_dy2;
+      if(_d2<_bestD2)_bestD2=_d2;
+      if(_d2<_touchR2){_closeT=1;_found=true;}
+    }
+  }
+  if(!_found)_closeT=Math.max(0,1-Math.sqrt(_bestD2)/_touchR);
+}
+o.closeT=_closeT;
+// smooth closeT — fast response (3-4 frames) so there's no perceptible lag
+o.closeTSmooth=o.closeTSmooth!==undefined?o.closeTSmooth*0.55+o.closeT*0.45:o.closeT;
+// isCircular: leader line crosses trail = perfect orbit. No ecc gating.
+var _loopClose=o.closeTSmooth>0.55&&!o._leaderHit;
+var _canEnter=!o.suctioning&&_loopClose;
+var _mustExit=o.suctioning||o._leaderHit||o.closeTSmooth<0.15||o.instability>0.90;
+o.isCircular=o.isCircular?!_mustExit:_canEnter;
+if(o.isCircular&&!o._wasCircular){
+  if(!o._lastCircPop||time-o._lastCircPop>12000){
+    worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
+    o._lastCircPop=time;_taughtCircle=true;
+  }
+}
+o._wasCircular=o.isCircular;
+// void boundary — cross BND_R and the planet is lost
+var bx=o.x-sun.x,by=o.y-sun.y,bd=Math.sqrt(bx*bx+by*by);
+if(bd>BND_R){
+  if(!chillMode){score-=10;scorePenalty=1;}
+  _voidToast=2800;
+  o.dead=true;o.respawnTimer=0;
+  return;
+}
+// hard speed cap — prevents gravity-sling fling-outs
+if(spd>3){o.vx=o.vx/spd*3;o.vy=o.vy/spd*3;}o.glow*=0.97;o.idleTime+=dt;if(o.idleTime>3000){var iw=Math.sin(o.idleTime*0.0015)*0.035;o.squishX=iw;o.squishY=-iw*0.5;}o.squishVX+=(-o.squishX)*0.08;o.squishVY+=(-o.squishY)*0.08;o.squishVX*=0.82;o.squishVY*=0.82;o.squishX+=o.squishVX;o.squishY+=o.squishVY;// compute radial velocity (+ = moving away from sun, - = toward)
+var _tsx=sun.x-o.x,_tsy=sun.y-o.y,_tsd=Math.sqrt(_tsx*_tsx+_tsy*_tsy);
+var _radVel=(_tsd>1)?(o.vx*(-_tsx/_tsd)+o.vy*(-_tsy/_tsd)):0; // negative = toward sun
+var _tCol; // trail color based on radial velocity and orbit quality
+var _orbColor=o.instability; // still track instability for other uses
+if(_radVel<-0.08){_tCol=[220,60,40];} // toward sun = red
+else if(_radVel>0.08){_tCol=[220,200,60];} // away from sun = yellow
+else{_tCol=[60,160,255];} // tangential = blue (good orbit)
+// blend toward red if very unstable regardless
+if(o.instability>0.8){_tCol=l3(_tCol,[220,50,30],Math.min(1,(o.instability-0.8)*2));}
+// stride: push less often for large orbits so TRAIL_LEN points always ≈ one full revolution
+var _pushInt=Math.max(16.7,_orbP/TRAIL_LEN);
+o._trailAcc=(o._trailAcc||0)+dt;
+if(o._trailAcc>=_pushInt){
+  o._trailAcc-=_pushInt;
+  o.trail.push({x:o.x,y:o.y,c:_tCol,t:time});
+  if(o.trail.length>TRAIL_LEN)o.trail.shift();
+}
+while(o.trail.length>1&&time-o.trail[0].t>_orbP*1.25){o.trail.shift();}
+if(spd>0.05)disturb(o.x,o.y,spd*0.04);}
+
+function drawLeaderLine(o){
+  if(o.dead||o.suctioning)return;
+  // Rebuild simulation every 8 frames — detects if path actually hits the sun
+  if(!o._leaderPts||_frameN%8===0){
+    var x=o.x,y=o.y,vx=o.vx,vy=o.vy;
+    var pts=[{x:x,y:y}];
+    var hit=false,oob=false;
+    // Scale steps to cover ~1 full orbit when ecc is low enough to be interesting
+    var _ol=Math.sqrt((o.x-sun.x)*(o.x-sun.x)+(o.y-sun.y)*(o.y-sun.y));
+    var _spd=Math.max(0.05,Math.sqrt(o.vx*o.vx+o.vy*o.vy));
+    var _orbitSteps=Math.ceil(2*3.14159*_ol/(_spd*16.67*TS*2));
+    var _ldrN=(o.eccSmooth<0.65)?Math.min(500,Math.max(110,_orbitSteps)):110;
+    for(var i=0;i<_ldrN;i++){
+      for(var s=0;s<2;s++){
+        var dx2=sun.x-x,dy2=sun.y-y,d2=Math.sqrt(dx2*dx2+dy2*dy2);
+        if(d2<sun.r+2){hit=true;i=_ldrN;break;}
+        var _bd2=Math.sqrt((x-sun.x)*(x-sun.x)+(y-sun.y)*(y-sun.y));
+        if(_bd2>BND_R){oob=true;i=_ldrN;break;}
+        var f2=getGM()/(d2*d2);if(f2>0.2)f2=0.2;
+        vx+=dx2/d2*f2*16.67;vy+=dy2/d2*f2*16.67;
+        x+=vx*16.67*TS;y+=vy*16.67*TS;
+      }
+      if(!hit&&!oob){pts.push({x:x,y:y});}
+    }
+    o._leaderPts=pts;
+    o._leaderHit=hit;
+    o._leaderOOB=oob;
+  }
+  // color: purple=circular, red=hitting sun or heading OOB, pink=near-circle, yellow=elliptical, blue=good
+  var _isCircActive=o.isCircular&&!o._leaderHit;
+  var _isDanger=o._leaderHit||o._leaderOOB;
+  var _nearCirc=!_isCircActive&&!_isDanger&&!o.suctioning&&o.closeTSmooth>0.20;
+  var _circFrac=_nearCirc?o.closeTSmooth:0;
+  var state=_isCircActive?'circ':(_isDanger?'red':(_nearCirc?'pink':(o.instability>0.40?'yellow':'blue')));
+  var cols={blue:[80,170,255],yellow:[230,210,60],red:[230,70,50],circ:[200,80,255]};
+  var c=_isCircActive?cols.circ:(_nearCirc?l3([80,170,255],[255,90,210],_circFrac):cols[state]);
+  var pts=o._leaderPts;
+  if(pts.length<2)return;
+  var pulseMult=(state==='red')?(0.55+Math.sin(Date.now()*0.01)*0.45):1;
+  var pinkPulse=(_nearCirc||_isCircActive)?(0.85+Math.sin(Date.now()*0.003)*0.15):1;
+  var moonMult=o.isMoon?0.4:1;
+
+  ctx.save();
+  if(_isCircActive){ctx.shadowColor="rgba(200,80,255,0.5)";ctx.shadowBlur=8;}
+  else if(_nearCirc&&_circFrac>0.3){ctx.shadowColor="rgba(255,90,210,"+(_circFrac*0.4)+")";ctx.shadowBlur=6*_circFrac;}
+  ctx.lineWidth=0.9;
+  ctx.lineCap="round";
+  ctx.setLineDash([]);
+
+  var startIdx=0;
+  for(var i=1;i<pts.length;i++){
+    var ex=pts[i].x-o.x,ey=pts[i].y-o.y;
+    if(ex*ex+ey*ey>o.baseR*o.baseR*1.1){startIdx=i;break;}
+  }
+
+  var zones=[
+    {from:0,   to:0.4,  alpha:0.72*pulseMult*pinkPulse*moonMult},
+    {from:0.4, to:0.7,  alpha:0.38*pulseMult*pinkPulse*moonMult},
+    {from:0.7, to:1.0,  alpha:0.14*pulseMult*pinkPulse*moonMult}
+  ];
+  for(var z=0;z<zones.length;z++){
+    var zn=zones[z];
+    var i0=startIdx+~~(zn.from*(pts.length-1-startIdx));
+    var i1=startIdx+~~(zn.to*(pts.length-1-startIdx));
+    if(i1<=i0)continue;
+    ctx.globalAlpha=zn.alpha;
+    ctx.strokeStyle="rgba("+c[0]+","+c[1]+","+c[2]+",1)";
+    ctx.beginPath();
+    ctx.moveTo(pts[i0].x,pts[i0].y);
+    for(var i=i0+1;i<=i1;i++){ctx.lineTo(pts[i].x,pts[i].y);}
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+function drawTrail(o){
+  if(o.dead||o.trail.length<4)return;
+  var tr=o.trail,len=tr.length;
+  var ecc=o.eccSmooth!==undefined?o.eccSmooth:1;
+  // Show full stored trail — time expiry (1.25 × orbital period) is the real length limiter.
+  // Elliptical orbits show slightly less so their trail doesn't look weirdly long.
+  var eccF=Math.max(0,1-ecc);
+  var visLen=Math.max(150,Math.floor(len*(0.96+0.04*eccF)));
+  var si=Math.max(0,len-visLen);
+  var closeT=o.closeT!==undefined?o.closeT:0;
+  var isCirc=!!o.isCircular;
+  // colour: grey→blue as orbit rounds out; pink when circular (persistent); cyan glow at closure
+  var blendT=Math.max(0,Math.min(1,(0.90-ecc)/0.90));
+  var _lw=o.isMoon?0.6:0.95;
+  // fabric wave helper — displaces trail points with the space fabric ripples
+  // wAt returns wave height (-5..5); multiply by 4 to match how the grid uses h*5
+  var _wS=4;
+  ctx.lineCap="round";ctx.lineJoin="round";
+  if(isCirc){
+    // persistent pink/lavender glow — orbit is locked and scoring
+    var _pp=0.40+Math.sin(Date.now()*0.003)*0.18;
+    ctx.save();
+    ctx.shadowColor="rgba(220,100,255,0.35)";ctx.shadowBlur=7;
+    ctx.beginPath();
+    var _p0=tr[si];ctx.moveTo(_p0.x,_p0.y+wAt(_p0.x,_p0.y)*_wS);
+    for(var i=si+1;i<len;i++){
+      var p=tr[i];var _wy=wAt(p.x,p.y)*_wS;
+      if(i<len-1){
+        var pn=tr[i+1];var _wyn=wAt(pn.x,pn.y)*_wS;
+        ctx.quadraticCurveTo(p.x,p.y+_wy,(p.x+pn.x)*0.5,(p.y+_wy+pn.y+_wyn)*0.5);
+      } else {
+        ctx.lineTo(p.x,p.y+_wy);
+      }
+    }
+    ctx.strokeStyle="rgba(220,110,255,"+_pp+")";ctx.lineWidth=_lw+0.4;ctx.stroke();
+    ctx.shadowBlur=0;ctx.restore();
+  } else {
+    // grey → blue as ecc improves, nudge toward cyan as closure approaches
+    var _cr=~~(200-120*blendT);
+    var _cg=~~(215-45*blendT+closeT*55);
+    var _cb=~~(230+25*blendT);
+    // tail glow pulse — brightens as closure nears, shows the dog catching its tail
+    var _tailGlow=closeT>0.35?(closeT-0.35)/0.65:0;
+    for(var i=si+1;i<len;i++){
+      var frac=(i-si)/(len-si);
+      // frac=0 is oldest (tail), frac=1 is newest (head near planet)
+      var tailBoost=_tailGlow*(1-frac)*(1-frac)*0.6;
+      var a=frac*frac*(o.isMoon?0.32:0.50)+tailBoost; // lighter than before
+      if(a<0.01)continue;
+      var _pa=tr[i-1],_pb=tr[i];
+      var _wya=wAt(_pa.x,_pa.y)*_wS,_wyb=wAt(_pb.x,_pb.y)*_wS;
+      ctx.strokeStyle="rgba("+_cr+","+_cg+","+_cb+","+Math.min(0.78,a)+")";
+      ctx.lineWidth=_lw;
+      ctx.beginPath();ctx.moveTo(_pa.x,_pa.y+_wya);ctx.lineTo(_pb.x,_pb.y+_wyb);ctx.stroke();
+    }
+    // tail tip glow — small dot at trail[si] when closure is near
+    if(_tailGlow>0.2&&si<len){
+      var _tg=_tailGlow*0.7;
+      var _tip=tr[si];var _twy=wAt(_tip.x,_tip.y)*_wS;
+      ctx.save();
+      ctx.shadowColor="rgba("+_cr+","+_cg+","+_cb+","+_tg+")";ctx.shadowBlur=8*_tailGlow;
+      ctx.fillStyle="rgba("+_cr+","+_cg+","+_cb+","+_tg+")";
+      ctx.beginPath();ctx.arc(_tip.x,_tip.y+_twy,2+_tailGlow*2,0,6.28);ctx.fill();
+      ctx.shadowBlur=0;ctx.restore();
+    }
+  }
+  ctx.lineCap="butt";ctx.lineJoin="miter";
+}
+function drawOrb(o){
+  ctx.globalAlpha=1; // always reset on entry
+  if(o.dead)return;
+  var effR=o.suctioning?o.r:o.baseR;
+  if(o.suctioning&&o.alpha!==undefined)ctx.globalAlpha=Math.max(0,o.alpha);
+  var rx=effR*(1+o.squishX*0.2),ry=effR*(1+o.squishY*0.2);
+  if(rx<0.5||ry<0.5)return;
+  var r=Math.max(rx,ry);
+  var pt=o.ptype;
+  var g=o.glow+(o.suctioning?0.5:0);
+
+  // sun-facing direction for lighting
+  var sdx=sun.x-o.x,sdy=sun.y-o.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);
+  var snx=sd>0?sdx/sd:0,sny=sd>0?sdy/sd:0;
+  var li=Math.min(1,110/(sd*0.2+30)); // light intensity
+  var lx=snx*r*0.38,ly=sny*r*0.38;   // light source offset
+
+  var cv=o.colorVar||[0,0,0];
+  var base=[~~Math.max(0,Math.min(255,pt.base[0]+cv[0])),~~Math.max(0,Math.min(255,pt.base[1]+cv[1])),~~Math.max(0,Math.min(255,pt.base[2]+cv[2]))];
+  var dark=[~~Math.max(0,Math.min(255,pt.dark[0]+cv[0]*0.6)),~~Math.max(0,Math.min(255,pt.dark[1]+cv[1]*0.6)),~~Math.max(0,Math.min(255,pt.dark[2]+cv[2]*0.6))];
+  var hi=[~~Math.max(0,Math.min(255,pt.hi[0]+cv[0]*0.4)),~~Math.max(0,Math.min(255,pt.hi[1]+cv[1]*0.4)),~~Math.max(0,Math.min(255,pt.hi[2]+cv[2]*0.4))];
+
+  // ── BACK RINGS (behind planet) ──
+  if(pt.ring){
+    ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt||0.22);
+    ctx.strokeStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.22)";ctx.lineWidth=r*0.14;
+    ctx.beginPath();ctx.arc(0,0,r*1.75,Math.PI,2*Math.PI);ctx.stroke();
+    ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.1)";ctx.lineWidth=r*0.07;
+    ctx.beginPath();ctx.arc(0,0,r*2.05,Math.PI,2*Math.PI);ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.save();ctx.translate(o.x,o.y);
+  ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.clip();
+
+  // ── BASE SPHERE GRADIENT — lit side bright, dark side very dark ──
+  // Radial from sun-facing point to anti-sun point for directional lighting
+  var bg=ctx.createRadialGradient(lx*1.1,ly*1.1,0,lx*1.1,ly*1.1,r*2.2);
+  bg.addColorStop(0,"rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.98)");
+  bg.addColorStop(0.25,"rgba("+base[0]+","+base[1]+","+base[2]+",0.95)");
+  bg.addColorStop(0.55,"rgba("+~~(base[0]*0.25)+","+~~(base[1]*0.25)+","+~~(base[2]*0.25)+",0.97)");
+  bg.addColorStop(1,"rgba("+~~(dark[0]*0.15)+","+~~(dark[1]*0.15)+","+~~(dark[2]*0.15)+",1.0)");
+  ctx.fillStyle=bg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+
+  // ── TYPE-SPECIFIC SURFACE DETAILS ──
+  if(pt.name==="rocky"||pt.name==="ice"){
+    // craters with shadow + highlight
+    for(var ci=0;ci<4;ci++){
+      var ca=o.craterSeeds[ci]+o.angle*1.0;
+      var cr=r*(0.08+ci*0.06);
+      var cx2=Math.cos(ca)*r*0.4,cy2=Math.sin(ca)*r*0.35;
+      ctx.fillStyle="rgba("+dark[0]+","+dark[1]+","+dark[2]+",0.35)";
+      ctx.beginPath();ctx.arc(cx2,cy2,cr,0,6.28);ctx.fill();
+      ctx.fillStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.12)";
+      ctx.beginPath();ctx.arc(cx2-cr*0.25,cy2-cr*0.25,cr*0.45,0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.bands>0){
+    // horizontal atmospheric bands
+    ctx.save();ctx.rotate((o.axialTilt||0)+o.angle*0.9);
+    for(var b=0;b<pt.bands;b++){
+      var by2=(b/(pt.bands)-0.5)*r*1.6;
+      var bh=r*(0.13+Math.sin(o.angle*0.3+b)*0.04);
+      var bAlpha=0.18*li*(b%2===0?1:0.6);
+      ctx.fillStyle="rgba("+dark[0]+","+dark[1]+","+dark[2]+","+bAlpha+")";
+      ctx.fillRect(-rx,by2-bh/2,rx*2,bh);
+      ctx.fillStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+","+(bAlpha*0.4)+")";
+      ctx.fillRect(-rx,by2-bh*0.15,rx*2,bh*0.3);
+    }
+    ctx.restore();
+    // great spot for gas giants
+    if(pt.name==="gas"){
+      var gs=ctx.createRadialGradient(r*0.2,r*0.1,0,r*0.2,r*0.1,r*0.28);
+      gs.addColorStop(0,"rgba(180,80,30,0.25)");gs.addColorStop(1,"rgba(180,80,30,0)");
+      ctx.fillStyle=gs;ctx.beginPath();ctx.arc(r*0.2,r*0.1,r*0.28,0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.cloudSwirl){
+    // wispy cloud patches
+    for(var c=0;c<3;c++){
+      var cla=o.craterSeeds[c]*2.1+o.angle*1.1;
+      var clx=Math.cos(cla)*r*0.25,cly=Math.sin(cla)*r*0.2;
+      var clg=ctx.createRadialGradient(clx,cly,0,clx,cly,r*(0.22+c*0.06));
+      clg.addColorStop(0,"rgba(255,255,255,"+(0.18*li)+")");
+      clg.addColorStop(1,"rgba(255,255,255,0)");
+      ctx.fillStyle=clg;ctx.beginPath();ctx.arc(clx,cly,r*(0.22+c*0.06),0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.alien){
+    // glowing patches
+    for(var a=0;a<3;a++){
+      var ala=o.craterSeeds[a]*2.5+o.angle*1.05;
+      var alx=Math.cos(ala)*r*0.3,aly=Math.sin(ala)*r*0.3;
+      var alg=ctx.createRadialGradient(alx,aly,0,alx,aly,r*0.25);
+      alg.addColorStop(0,"rgba(100,255,200,0.22)");alg.addColorStop(1,"rgba(80,200,180,0)");
+      ctx.fillStyle=alg;ctx.beginPath();ctx.arc(alx,aly,r*0.25,0,6.28);ctx.fill();
+    }
+  }
+
+  if(pt.name==="lava"){
+    // glowing crack network
+    ctx.save();ctx.rotate((o.axialTilt||0)+o.angle*0.95);
+    for(var v=0;v<4;v++){
+      var va=v*1.57;var vg=ctx.createLinearGradient(
+        Math.cos(va)*r*0.1,Math.sin(va)*r*0.1,
+        Math.cos(va)*r*0.7,Math.sin(va)*r*0.7);
+      vg.addColorStop(0,"rgba(255,180,30,0.35)");vg.addColorStop(1,"rgba(255,80,20,0)");
+      ctx.strokeStyle="rgba(255,160,20,0.2)";ctx.lineWidth=r*0.04;
+      ctx.beginPath();ctx.moveTo(Math.cos(va)*r*0.1,Math.sin(va)*r*0.1);
+      ctx.lineTo(Math.cos(va+0.3)*r*0.7,Math.sin(va+0.3)*r*0.7);ctx.stroke();
+    }
+    ctx.restore();
+    // inner glow
+    var lg2=ctx.createRadialGradient(0,0,0,0,0,r*0.6);
+    lg2.addColorStop(0,"rgba(255,200,50,0.15)");lg2.addColorStop(1,"rgba(255,100,20,0)");
+    ctx.fillStyle=lg2;ctx.beginPath();ctx.arc(0,0,r*0.6,0,6.28);ctx.fill();
+  }
+
+  if(pt.iceCapWhite){
+    // polar ice caps top and bottom
+    var icg=ctx.createRadialGradient(0,-r*0.72,0,0,-r*0.72,r*0.45);
+    icg.addColorStop(0,"rgba(240,250,255,0.55)");icg.addColorStop(1,"rgba(220,240,255,0)");
+    ctx.fillStyle=icg;ctx.beginPath();ctx.arc(0,-r*0.72,r*0.45,0,6.28);ctx.fill();
+  }
+
+  if(pt.name==="earth"){
+    // green landmass blobs
+    for(var e=0;e<3;e++){
+      var ela=o.craterSeeds[e]*2.2+o.angle*1.0;
+      var elx=Math.cos(ela)*r*0.2,ely=Math.sin(ela)*r*0.18;
+      var elg=ctx.createRadialGradient(elx,ely,0,elx,ely,r*(0.18+e*0.04));
+      elg.addColorStop(0,"rgba(60,140,50,0.45)");elg.addColorStop(1,"rgba(40,100,30,0)");
+      ctx.fillStyle=elg;ctx.beginPath();ctx.arc(elx,ely,r*(0.18+e*0.04),0,6.28);ctx.fill();
+    }
+  }
+
+  // ── SPECULAR HIGHLIGHT ──
+  var hlg=ctx.createRadialGradient(lx*0.7,ly*0.7,0,lx*0.4,ly*0.4,r*0.55);
+  hlg.addColorStop(0,"rgba(255,255,255,"+(0.18*li+g*0.08)+")");
+  hlg.addColorStop(0.4,"rgba(255,255,255,"+(0.05*li)+")");
+  hlg.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle=hlg;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+
+  // ── TERMINATOR (dark side shadow) ──
+  // terminator — strong dark side, sun is the only light source
+  // terminator — linear gradient cutting planet roughly in half
+  // from sun-facing edge (bright) to anti-sun edge (near-black)
+  var sh=ctx.createLinearGradient(snx*r,sny*r,-snx*r,-sny*r);
+  sh.addColorStop(0,"rgba(0,0,0,0)");      // lit side — transparent
+  sh.addColorStop(0.48,"rgba(0,0,0,0)");   // stays clear until midpoint
+  sh.addColorStop(0.56,"rgba(0,0,0,0.25)"); // soft terminator
+  sh.addColorStop(1,"rgba(0,0,0,0.38)");   // dark side — 35%
+  ctx.fillStyle=sh;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+  // limb darkening around entire edge
+  var ld=ctx.createRadialGradient(0,0,r*0.5,0,0,r);
+  ld.addColorStop(0,"rgba(0,0,0,0)");
+  ld.addColorStop(0.6,"rgba(0,0,0,0.08)");
+  ld.addColorStop(1,"rgba(0,0,0,0.65)");
+  ctx.fillStyle=ld;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,6.28);ctx.fill();
+
+  ctx.restore();
+
+  // ── ATMOSPHERE (outside clip) ──
+  if(pt.atmo){
+    var atg=ctx.createRadialGradient(o.x,o.y,r*0.88,o.x,o.y,r*1.18);
+    atg.addColorStop(0,"rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+",0)");
+    atg.addColorStop(0.5,"rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+","+(0.09*li)+")");
+    atg.addColorStop(1,"rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+",0)");
+    ctx.fillStyle=atg;ctx.beginPath();ctx.arc(o.x,o.y,r*1.18,0,6.28);ctx.fill();
+    // atmospheric rim light on sun side
+    var la=Math.atan2(sny,snx);
+    ctx.strokeStyle="rgba("+pt.atmo[0]+","+pt.atmo[1]+","+pt.atmo[2]+","+(0.12*li)+")";
+    ctx.lineWidth=r*0.06+1;
+    ctx.beginPath();ctx.arc(o.x,o.y,r*1.02,la-1.3,la+1.3);ctx.stroke();
+  }
+
+  // ── FRONT RINGS (in front of planet) ──
+  if(pt.ring){
+    ctx.save();ctx.translate(o.x,o.y);ctx.scale(1,o.ringTilt||0.22);
+    ctx.strokeStyle="rgba("+base[0]+","+base[1]+","+base[2]+",0.28)";ctx.lineWidth=r*0.14;
+    ctx.beginPath();ctx.arc(0,0,r*1.75,0,Math.PI);ctx.stroke();
+    ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+",0.12)";ctx.lineWidth=r*0.07;
+    ctx.beginPath();ctx.arc(0,0,r*2.05,0,Math.PI);ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.globalAlpha=1; // reset after suction fade
+  // glow ring if recently hit
+  if(g>0.05){
+    ctx.strokeStyle="rgba("+hi[0]+","+hi[1]+","+hi[2]+","+g*0.4+")";
+    ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,r+2,0,6.28);ctx.stroke();
+  }
+}
+
+function applyPuck(){
+  var dep=well.depth; // 0..1, works even when not active (decay phase)
+  if(dep<=0)return;
+  var wx=well.x,wy=well.y;
+  var wvx=wx-well.px,wvy=wy-well.py;
+  var wSpd=Math.sqrt(wvx*wvx+wvy*wvy);
+
+  // influence radius grows with depth
+  var radius=WELL_ATTRACT*(0.25+dep*0.45); // 45px min, 126px max — more localized
+
+  // sun: scales with depth
+  var sdx=wx-sun.x,sdy=wy-sun.y,sd=Math.sqrt(sdx*sdx+sdy*sdy);
+  if(sd<radius&&sd>sun.r){
+    var sf=Math.min(0.004,WELL_STRENGTH*dep*1.5/(sd+1));
+    sun.vx+=sdx/sd*sf;sun.vy+=sdy/sd*sf;
+  }
+
+  for(var i=0;i<orbs.length;i++){
+    var o=orbs[i];if(o.dead||o.suctioning)continue;
+    var dx=wx-o.x,dy=wy-o.y,d=Math.sqrt(dx*dx+dy*dy);
+    if(d>radius)continue;
+
+    var falloff=1-(d/radius);
+
+    // base strength: at 3s hold = ~10x sun gravity at close range
+    // at 0s = just a gentle nudge from a swipe
+    var baseStr=WELL_STRENGTH*(4.0+dep*dep*12.0)*falloff*falloff;
+
+    // swipe speed adds a directional burst (quick swipe = shallow path)
+    // moves the planet along the swipe direction rather than just toward well
+    if(wSpd>0.3){
+      var swipeStr=Math.min(0.06,wSpd*0.012)*(1-dep*0.3);
+      // swipe direction is the main force, fall toward well is secondary
+      o.vx+=wvx/Math.max(1,wSpd)*swipeStr*falloff;
+      o.vy+=wvy/Math.max(1,wSpd)*swipeStr*falloff;
+    }
+
+    // radial pull toward well center
+    o.vx+=dx/d*baseStr;
+    o.vy+=dy/d*baseStr;
+    o.idleTime=0;
+
+    // ── CAPTURE ASSIST: close pass = viscous drag to slow fast movers ──
+    // within ~25px the planet hits a "sticky patch" — decelerates so gravity
+    // has time to work. Stronger the closer, scales with depth.
+    if(d<25){
+      var dragAmt=0.06+dep*0.12; // 6-18% speed reduction per frame
+      o.vx*=(1-dragAmt);
+      o.vy*=(1-dragAmt);
+      o.glow=Math.min(1,o.glow+0.04);
+    }
+
+    // glow scales with depth
+    if(d<radius*0.6)o.glow=Math.min(0.8,o.glow+0.012*dep);
+  }
+
+  // ── TRAIL CHANNEL PULL — orbs attracted along the carved path ──
+  // Each recent trail point pulls nearby orbs, creating a channel effect
+  if(well.trail.length>1){
+    for(var oi=0;oi<orbs.length;oi++){
+      var o2=orbs[oi];if(o2.dead||o2.suctioning)continue;
+      for(var ti=Math.max(0,well.trail.length-12);ti<well.trail.length;ti++){
+        var tp=well.trail[ti];
+        var freshness=1-tp.age; // fades as trail ages
+        var tdx=tp.x-o2.x,tdy=tp.y-o2.y;
+        var td=Math.sqrt(tdx*tdx+tdy*tdy);
+        if(td>60||td<1)continue;
+        var tfall=1-(td/60);
+        // pull toward trail point, strength based on depth when drawn
+        var tStr=WELL_STRENGTH*2.5*tp.dep*tfall*tfall*freshness;
+        o2.vx+=tdx/td*tStr;
+        o2.vy+=tdy/td*tStr;
+      }
+    }
+  }
+}
+function applyG(){for(var i=0;i<orbs.length;i++){if(orbs[i].dead)continue;for(var j=i+1;j<orbs.length;j++){if(orbs[j].dead)continue;var a=orbs[i],b=orbs[j];var dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy);var ms=a.baseR+b.baseR+5;if(d<ms&&d>0.1){var rp=0.02*(ms-d)/ms;var nx=dx/d,ny=dy/d;a.vx-=nx*rp;a.vy-=ny*rp;b.vx+=nx*rp;b.vy+=ny*rp;continue;}if(d>180)continue;var f=Math.min(0.00015*a.mass*b.mass/(d*d),0.002);nx=dx/d;ny=dy/d;a.vx+=nx*f/a.mass;a.vy+=ny*f/a.mass;b.vx-=nx*f/b.mass;b.vy-=ny*f/b.mass;}}}
+function collide(){for(var p=0;p<3;p++){for(var i=0;i<orbs.length;i++){if(orbs[i].dead)continue;for(var j=i+1;j<orbs.length;j++){if(orbs[j].dead)continue;var a=orbs[i],b=orbs[j];var dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy),mn=a.baseR+b.baseR;if(d>=mn||d<0.1)continue;var nx=dx/d,ny=dy/d,ov=mn-d,tm=a.mass+b.mass;a.x-=nx*ov*(b.mass/tm)*0.55;a.y-=ny*ov*(b.mass/tm)*0.55;b.x+=nx*ov*(a.mass/tm)*0.55;b.y+=ny*ov*(a.mass/tm)*0.55;if(p===0){var dvx=a.vx-b.vx,dvy=a.vy-b.vy,dot=dvx*nx+dvy*ny;if(dot>0){var imp=dot/tm*0.12;a.vx-=imp*b.mass*nx;a.vy-=imp*b.mass*ny;b.vx+=imp*a.mass*nx;b.vy+=imp*a.mass*ny;a.glow=Math.min(1,a.glow+0.2);b.glow=Math.min(1,b.glow+0.2);disturb((a.x+b.x)/2,(a.y+b.y)/2,0.6);try{if(navigator.vibrate)navigator.vibrate(4);}catch(e){}}}}}}}
+
+var rings=[];function addRing(x,y,s){rings.push({x:x,y:y,rad:0,mx:55+s*75,life:1,spd:0.5+s*0.3})}
+
+var dragN=0;
+function gXY(e){
+  var t=e.touches?e.touches[0]:e;
+  var sx=t.clientX,sy=t.clientY;
+  // convert screen coords to world coords (accounts for zoom + pan)
+  var wx=(sx-W/2+camX)/zoom+W/2;
+  var wy=(sy-H/2+camY)/zoom+H/2;
+  return{x:wx,y:wy,sx:sx,sy:sy};
+}
+function inLZ(p){
+  // launcher drawn in raw screen space after ctx.restore — no zoom conversion needed
+  var sx=p.sx!==undefined?p.sx:p.x;
+  var sy=p.sy!==undefined?p.sy:p.y;
+  return Math.sqrt((sx-launcher.x)**2+(sy-launcher.y)**2)<LAUNCH_ZONE_R+20&&launcher.cooldown<=0;
+}
+function inHandle(p){
+  // handle drawn in raw screen space after ctx.restore
+  var sx=p.sx!==undefined?p.sx:p.x;
+  var sy=p.sy!==undefined?p.sy:p.y;
+  return sx>W-46&&sx<W-2&&sy>launcher.y-24&&sy<launcher.y+24;
+}
+function inMenuZone(p){
+  var sx=p.sx!==undefined?p.sx:p.x;
+  var sy=p.sy!==undefined?p.sy:p.y;
+  return sx>=W-62&&sy>=50&&sy<=100;
+}
+function inHomeBtn(p){
+  var sx=p.sx!==undefined?p.sx:p.x;
+  var sy=p.sy!==undefined?p.sy:p.y;
+  return (Math.abs(camX)>8||Math.abs(camY)>8)&&sx<56&&sy>H-64&&sy<H-12;
+}
+function _pinchDist(e){
+  var dx=e.touches[0].clientX-e.touches[1].clientX;
+  var dy=e.touches[0].clientY-e.touches[1].clientY;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function _pinchMid(e){
+  return{x:(e.touches[0].clientX+e.touches[1].clientX)*0.5,
+         y:(e.touches[0].clientY+e.touches[1].clientY)*0.5};
+}
+function onD(e){e.preventDefault();
+  if(e.touches&&e.touches.length===2){
+    _pinching=true;
+    _pinchDist0=_pinchDist(e);
+    var m=_pinchMid(e);
+    _pan2.active=true;_pan2.prevMX=m.x;_pan2.prevMY=m.y;
+    well.active=false;well.trail=[];launcher.pulling=false;launcher.draggingHandle=false;
+    return;
+  }
+  _pinching=false;_pan2.active=false;
+  var p=gXY(e);
+  var ps={x:e.touches?e.touches[0].clientX:e.clientX,y:e.touches?e.touches[0].clientY:e.clientY};
+  if(inMenuZone(ps)){showMenu();return;}
+  if(inHandle(ps)){launcher.draggingHandle=true;return;}
+  if(inHomeBtn(ps)){camHoming=true;return;}
+  if(inLZ(ps)){launcher.pulling=true;launcher.pullX=p.x;launcher.pullY=p.y;}
+  else{well.active=true;well.x=p.x;well.y=p.y;well.px=p.x;well.py=p.y;disturb(p.x,p.y,1.2);addRing(p.x,p.y,0.5);}
+}
+function onM(e){e.preventDefault();
+  if(e.touches&&e.touches.length===2){
+    if(!_pinching){
+      _pinching=true;_pinchDist0=_pinchDist(e);
+      var m0=_pinchMid(e);
+      _pan2.active=true;_pan2.prevMX=m0.x;_pan2.prevMY=m0.y;
+      return;
+    }
+    var d=_pinchDist(e);
+    if(_pinchDist0>0){
+      var ratio=1+(d/_pinchDist0-1)*0.5;
+      zoomTarget=Math.max(0.55,Math.min(1.8,zoomTarget*ratio));
+      _pinchDist0=d;
+    }
+    var m=_pinchMid(e);
+    if(_pan2.active){
+      var pdx=m.x-_pan2.prevMX;
+      var pdy=m.y-_pan2.prevMY;
+      camX=Math.max(-CAM_MAX_X,Math.min(CAM_MAX_X,camX-pdx));
+      camY=Math.max(-CAM_MAX_Y,Math.min(CAM_MAX_Y,camY-pdy));
+      camHoming=false;
+    }
+    _pan2.prevMX=m.x;_pan2.prevMY=m.y;
+    return;
+  }
+  if(_pinching)return;
+  var p=gXY(e);
+  var ps={x:e.touches?e.touches[0].clientX:e.clientX,y:e.touches?e.touches[0].clientY:e.clientY};
+  if(launcher.draggingHandle){
+    launcher.y=Math.max(80,Math.min(H-80,ps.y));
+    launcher.x=W/2;
+    return;
+  }
+  if(launcher.pulling){launcher.pullX=p.x;launcher.pullY=p.y;return;}
+  if(!well.active)return;
+  well.px=well.x;well.py=well.y;well.x=p.x;well.y=p.y;
+  well.vx=well.x-well.px;well.vy=well.y-well.py;
+  var spd=Math.sqrt(well.vx**2+well.vy**2);
+  disturb(well.x,well.y,0.2+spd*0.01);
+  well.trail.push({x:well.x,y:well.y,age:0,dep:well.depth});
+  if(well.trail.length>40)well.trail.shift();dragN++;
+}
+function onU(e){e.preventDefault();
+  var wasPinching=_pinching;
+  if(e.touches&&e.touches.length===1){
+    if(wasPinching){_pinching=false;_pan2.active=false;return;}
+  }
+  if(e.touches&&e.touches.length>0)return;
+  _pinching=false;_pan2.active=false;
+  if(launcher.draggingHandle){launcher.draggingHandle=false;return;}
+  if(launcher.pulling){launchPlanet();launcher.pulling=false;return;}
+  if(well.active){disturb(well.x,well.y,0.8);}
+  well.active=false;well.trail=[];dragN=0;
+  if(!wasPinching&&e.changedTouches&&e.changedTouches.length===1){
+    var now=Date.now();
+    if(now-_lastTap<320){zoomTarget=1.0;camX=0;camY=0;camHoming=false;}
+    _lastTap=now;
+  }
+}
+canvas.addEventListener("touchstart",onD,{passive:false});
+canvas.addEventListener("touchmove",onM,{passive:false});
+canvas.addEventListener("touchend",onU,{passive:false});
+canvas.addEventListener("mousedown",onD,false);
+canvas.addEventListener("mousemove",function(e){if(well.active||launcher.pulling||launcher.draggingHandle)onM(e);},false);
+canvas.addEventListener("mouseup",onU,false);
+canvas.addEventListener("wheel",function(e){
+  e.preventDefault();
+  var delta=e.deltaY>0?-0.08:0.08;
+  zoomTarget=Math.max(0.55,Math.min(1.8,zoomTarget+delta));
+},{passive:false});
+// double-tap handled inside onU to avoid dual-listener conflicts
+var _lastTap=0;
+
+function resize(){W=window.innerWidth;H=window.innerHeight;sun.homeX=W/2;sun.homeY=H/2;canvas.width=W;canvas.height=H;canvas.style.width=W+"px";canvas.style.height=H+"px";CAM_MAX_X=Math.max(120,BND_R-W/2+100);CAM_MAX_Y=Math.max(120,BND_R-H/2+100);initW();if(stars.length===0)initStars();if(nebulae.length===0)initNebula();if(galaxies.length===0)initGalaxies();launcher.x=W/2;launcher.y=Math.round(H*0.75);if(orbs.length===0){sun.x=W/2;sun.y=H/2;initOrbs();queueNext();}}
+window.addEventListener("resize",resize);
+// Folding phones fire visualViewport resize when unfolding — regular resize may not catch it
+if(window.visualViewport)window.visualViewport.addEventListener("resize",resize);
+document.addEventListener("visibilitychange",function(){
+  if(document.hidden){
+    if(!paused){paused=true;lastT=0;window._autoPaused=true;}
+    // clear ALL touch state so no ghost touches on return
+    well.active=false;well.depth=0;well.holdTime=0;well.trail=[];
+    launcher.pulling=false;launcher.draggingHandle=false;
+    _pan2.active=false;
+    dragN=0;
+    // show menu
+    var mo=document.getElementById('menu-overlay');
+    if(mo&&mo.style.display==='none')mo.style.display='flex';
+    showTab('game');
+  }
+});
+window.addEventListener("pagehide",function(){paused=true;lastT=0;});
+window.addEventListener("pageshow",function(){var mo=document.getElementById('menu-overlay');if(!document.hidden&&(!mo||mo.style.display==='none')){paused=false;lastT=0;}});
+
+
+/* === SCORING === */
+var score=0;
+var scoreOrbit=0;   // progress 0..1 toward next +1
+var scorePenalty=0; // flash timer for penalty
+var orbsEaten=0;    // how many eaten so far — multiplies penalty
+var scorePop=0;     // value of last pop (for float animation)
+var scorePopY=0;    // current y offset of pop
+var scorePopMult=1; // multiplier that triggered last pop
+var penaltyPops=[];  // [{x,y,vy,life}] floating -10 labels from sun
+var _voidToast=0;   // ms remaining on "lost to the void" screen toast
+var worldPops=[];    // [{x,y,vy,text,life,r,g,b}] floating labels in world space
+var _taughtCircle=false; // true once player earns first perfect circle
+
+// How long (ms) one full orbit-tick takes based on orb count
+function orbitPeriod(n){
+  if(n<3) return Infinity;
+  // 3 orbs = 10000ms, 10 orbs = 3000ms, linear interpolation clamped
+  var ms=10000-(n-3)*(7000/7);
+  return Math.max(2000,ms);
+}
+
+function liveOrbCount(){
+  var c=0;for(var i=0;i<orbs.length;i++)if(!orbs[i].dead)c++;return c;
+}
+
+// only blue/teal/green orbs count toward the multiplier
+function stableOrbCount(){
+  var c=0;
+  for(var i=0;i<orbs.length;i++){
+    var o=orbs[i];
+    if(!o.dead&&!o.suctioning&&o.instability<0.40)c++;
+  }
+  return c;
+}
+
+function circularOrbCount(){
+  var c=0;
+  for(var i=0;i<orbs.length;i++){if(!orbs[i].dead&&orbs[i].isCircular)c++;}
+  return c;
+}
+function updateScore(dt){
+  if(chillMode)return;
+  var total=liveOrbCount();
+  var stable=stableOrbCount();
+  // need at least 3 total orbs in flight to score
+  if(total<3){scoreOrbit=0;return;}
+  // speed based on total orbs, points based on stable orbs
+  var period=orbitPeriod(total);
+  scoreOrbit+=dt/period;
+  if(scoreOrbit>=1){
+    scoreOrbit-=1;
+    var circ=circularOrbCount();
+    var mult=circ>0?circ*10:1;
+    var pts=Math.max(1,stable)*mult;
+    score+=pts;scorePop=pts;scorePopMult=mult;
+  }
+}
+
+function drawOrbIcon(cx,cy,r,alpha){
+  // small glowing circle icon representing an orb
+  ctx.strokeStyle="rgba(100,200,255,"+alpha+")";ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(cx,cy,r,0,6.28);ctx.stroke();
+  ctx.fillStyle="rgba(100,200,255,"+(alpha*0.25)+")";
+  ctx.beginPath();ctx.arc(cx,cy,r,0,6.28);ctx.fill();
+  // tiny dot center
+  ctx.fillStyle="rgba(180,230,255,"+alpha+")";
+  ctx.beginPath();ctx.arc(cx,cy,1.2,0,6.28);ctx.fill();
+}
+
+function drawScore(t){
+  if(chillMode){
+    ctx.save();ctx.font="11px system-ui,sans-serif";ctx.textAlign="left";
+    ctx.fillStyle="rgba(100,220,255,0.4)";ctx.textBaseline="top";
+    ctx.fillText("🌊  chill mode",16,22);ctx.restore();return;
+  }
+  var n=liveOrbCount();
+  var ns=stableOrbCount(); // stable (blue/green) orbs
+  var isNeg=score<0;
+  var isWaiting=(n<3);
+  var period=orbitPeriod(n);
+  var progress=period===Infinity?0:scoreOrbit;
+
+  ctx.save();
+  ctx.textAlign="left";ctx.textBaseline="top";
+
+  var px=16,py=20;
+
+  // --- SCORE NUMBER ---
+  var scoreStr=(score<0?"-":"")+Math.abs(score);
+  var scoreColor=isNeg?"rgba(240,80,80,0.92)":"rgba(255,255,255,0.88)";
+  if(scorePenalty>0){scorePenalty-=0.016;scoreColor="rgba(255,50,50,1)";}
+  ctx.font="bold 30px system-ui,sans-serif";
+  ctx.fillStyle=scoreColor;
+  ctx.fillText(scoreStr,px,py);
+
+  // --- PENALTY POPS from sun ---
+  for(var _i=penaltyPops.length-1;_i>=0;_i--){
+    var pp=penaltyPops[_i];
+    pp.vy-=0.04;pp.y+=pp.vy;pp.life-=0.018;
+    if(pp.life<=0){penaltyPops.splice(_i,1);continue;}
+    ctx.save();
+    ctx.font="bold 16px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillStyle="rgba(255,60,60,"+pp.life+")";
+    ctx.fillText("−"+(pp.val||10),pp.x,pp.y);
+    ctx.restore();
+  }
+
+  // --- +net POP ANIMATION (floats up from score number) ---
+  if(scorePop>0){
+    scorePopY+=0.04;
+    var popAlpha=Math.max(0,1-scorePopY*0.7);
+    ctx.textBaseline="middle";
+    ctx.textAlign="left";
+    if(scorePopMult>1){
+      ctx.font="bold 13px system-ui,sans-serif";
+      ctx.fillStyle="rgba(200,80,255,"+popAlpha+")";
+      ctx.fillText("+"+scorePop+" \xd7"+scorePopMult,px,py-2-scorePopY*22);
+    } else {
+      ctx.font="bold 13px system-ui,sans-serif";
+      ctx.fillStyle="rgba(100,220,255,"+popAlpha+")";
+      ctx.fillText("+"+scorePop,px,py-2-scorePopY*22);
+    }
+    if(popAlpha<=0){scorePop=0;scorePopY=0;scorePopMult=1;}
+  }
+
+  // --- PROGRESS BAR ---
+  var barX=px,barY=py+38,barW=110,barH=4;
+  // track
+  ctx.textBaseline="top";
+  ctx.fillStyle="rgba(255,255,255,0.07)";
+  ctx.beginPath();ctx.roundRect(barX,barY,barW,barH,2);ctx.fill();
+  // fill
+  if(!isWaiting&&progress>0){
+    var barFill=progress*barW;
+    var fc=isNeg?"rgba(240,80,80,0.75)":"rgba(100,200,255,0.75)";
+    ctx.fillStyle=fc;
+    ctx.beginPath();ctx.roundRect(barX,barY,barFill,barH,2);ctx.fill();
+  }
+  // waiting pulse
+  if(isWaiting){
+    var pulse=0.3+Math.sin(t*0.003)*0.2;
+    ctx.fillStyle="rgba(255,200,80,"+pulse+")";
+    ctx.beginPath();ctx.roundRect(barX,barY,barW,barH,2);ctx.fill();
+  }
+
+  // stacked multiplier — right of bar, centred vertically
+  ctx.textBaseline="middle";
+  var multX=barX+barW+8;
+  var unstable=n-ns;
+  var ROW_H=13; // fixed row height
+  var ICON_R=4; // fixed icon radius — no size animation
+
+  if(isWaiting){
+    ctx.font="11px system-ui,sans-serif";
+    ctx.fillStyle="rgba(255,200,80,0.45)";
+    ctx.fillText("+"+(3-n)+" more",multX,barY+barH/2);
+  } else {
+    // color ramp for stable count
+    var tiers=[[100,200,255],[60,220,200],[80,220,100],[255,210,60],[255,140,40],[255,60,80],[220,60,255],[100,140,255]];
+    var rainbowMode=ns>=30;
+    var mc;
+    if(rainbowMode){
+      var hueSpd=ns>=50?0.003:0.0015;var hue=(t*hueSpd)%360;
+      mc=[Math.sin(hue*Math.PI/180)*127+128,Math.sin((hue+120)*Math.PI/180)*127+128,Math.sin((hue+240)*Math.PI/180)*127+128];
+    } else {
+      var stepsPerTier=3;
+      var tierIdx=Math.min(tiers.length-2,Math.floor((Math.max(0,ns-3))/stepsPerTier));
+      var tierFrac=((Math.max(0,ns-3))/stepsPerTier)-Math.floor((Math.max(0,ns-3))/stepsPerTier);
+      var c1=tiers[tierIdx],c2=tiers[Math.min(tiers.length-1,tierIdx+1)];
+      mc=[c1[0]+(c2[0]-c1[0])*tierFrac,c1[1]+(c2[1]-c1[1])*tierFrac,c1[2]+(c2[2]-c1[2])*tierFrac];
+    }
+    // pulse only affects COLOR alpha and glow — not size or position
+    var pulseSpd=0.002+Math.min(0.012,ns*0.0004);
+    var pulseMag=Math.min(0.4,0.05+ns*0.01);
+    var pulse=1+Math.sin(t*pulseSpd)*pulseMag;
+    if(ns>=20)pulse+=Math.sin(t*pulseSpd*2.3+1.2)*(pulseMag*0.3);
+    if(ns>=40)pulse+=Math.sin(t*pulseSpd*3.7+2.5)*(pulseMag*0.2);
+    pulse=Math.max(0.3,pulse);
+    var baseAlpha=Math.min(1.0,0.5+ns*0.025);
+
+    // vertical centering: if red row exists, shift blue up by half row height
+    var totalRows=unstable>0?2:1;
+    var blockH=(totalRows-1)*ROW_H;
+    var barMid=barY+barH/2;
+    var rowAy=barMid-blockH/2;
+    var rowBy=rowAy+ROW_H;
+
+    // font scales with count but stays modest
+    var fontSize=Math.min(15,11+ns*0.12);
+    ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
+
+    // glow on text only (not icon)
+    var glowBlur=Math.min(14,Math.max(0,(ns-5)*0.9))*pulse;
+    if(glowBlur>0.5){ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.85)";ctx.shadowBlur=glowBlur;}
+    if(ns>=50){
+      ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.2)";
+      ctx.fillText("+"+ns,multX+1,rowAy+1);
+    }
+    ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(Math.min(1,baseAlpha*pulse))+")";
+    ctx.fillText("+"+ns,multX,rowAy);
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+
+    // blue orb icon — fixed size, fixed position, no orbit
+    var bTxtW=ctx.measureText("+"+ns).width;
+    var bIconX=multX+bTxtW+ICON_R+3;
+    ctx.strokeStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+","+(Math.min(0.9,0.45+ns*0.02))+")";
+    ctx.lineWidth=1;
+    if(glowBlur>0.5){ctx.shadowColor="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.4)";ctx.shadowBlur=glowBlur*0.4;}
+    ctx.beginPath();ctx.arc(bIconX,rowAy,ICON_R,0,6.28);ctx.stroke();
+    ctx.fillStyle="rgba("+~~mc[0]+","+~~mc[1]+","+~~mc[2]+",0.18)";
+    ctx.beginPath();ctx.arc(bIconX,rowAy,ICON_R,0,6.28);ctx.fill();
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+
+    // red row — right-aligned so icon stacks under blue icon
+    if(unstable>0){
+      ctx.font="bold "+~~fontSize+"px system-ui,sans-serif";
+      // right-align: measure number, then place so its right edge = bIconX - ICON_R - 3
+      var rTxtW=ctx.measureText(String(unstable)).width;
+      var rNumX=bIconX-ICON_R-3-rTxtW; // right edge of number aligns with left edge of icon gap
+      ctx.fillStyle="rgba(255,90,50,0.75)";
+      ctx.fillText(unstable,rNumX,rowBy);
+      // icon at exactly same x as blue icon
+      ctx.strokeStyle="rgba(255,80,40,0.6)";ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(bIconX,rowBy,ICON_R,0,6.28);ctx.stroke();
+      ctx.fillStyle="rgba(255,60,20,0.14)";
+      ctx.beginPath();ctx.arc(bIconX,rowBy,ICON_R,0,6.28);ctx.fill();
+      ctx.fillStyle="rgba(255,110,70,0.45)";
+      ctx.beginPath();ctx.arc(bIconX,rowBy,1.5,0,6.28);ctx.fill();
+    }
+    // ×N multiplier badge — right of orbit counter
+    var _liveCirc2=circularOrbCount();
+    if(_liveCirc2>0){
+      var _lm2=_liveCirc2*10;
+      var _bp2=0.7+Math.sin(Date.now()*0.003)*0.3;
+      var _mx2=bIconX+ICON_R+10;
+      ctx.font="bold 11px system-ui,sans-serif";ctx.textBaseline="middle";ctx.textAlign="left";
+      ctx.fillStyle="rgba(200,80,255,"+_bp2+")";
+      ctx.shadowColor="rgba(200,80,255,0.55)";ctx.shadowBlur=6;
+      ctx.fillText("\xd7"+_lm2,_mx2,rowAy);
+      ctx.shadowBlur=0;ctx.shadowColor="transparent";
+    }
+  }
+
+  // --- "add more orbs" message — floats above sun when waiting ---
+  if(isWaiting){
+    var msgPulse=0.45+Math.sin(t*0.003)*0.3;
+    ctx.save();
+    ctx.font="bold 12px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="bottom";
+    ctx.fillStyle="rgba(255,200,80,"+msgPulse+")";
+    ctx.fillText("launch more orbs to score",sun.x,sun.y-sun.r-14);
+    // little arrow pointing down toward sun
+    ctx.strokeStyle="rgba(255,200,80,"+(msgPulse*0.6)+")";ctx.lineWidth=1;ctx.lineCap="round";
+    var ax=sun.x,ay=sun.y-sun.r-6;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax,ay+5);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(ax-3,ay+2);ctx.lineTo(ax,ay+6);ctx.lineTo(ax+3,ay+2);ctx.stroke();
+    ctx.lineCap="butt";
+    ctx.restore();
+  }
+
+  // --- ROW 2: sun mass bar  (☀ mass ▰▰▰▱▱ ⚫) ---
+  var massPct=sun.mass/sun.maxMass;
+  var row2Y=barY+20; // extra gap from progress bar
+  ctx.textBaseline="middle";
+
+  // mini sun icon before "mass"
+  var sx2=barX+5,sy2=row2Y,sunR=4;
+  ctx.strokeStyle="rgba(255,160,40,0.4)";ctx.lineWidth=0.6;
+  for(var si=0;si<8;si++){var sa2=si*0.785;ctx.beginPath();ctx.moveTo(sx2+Math.cos(sa2)*(sunR+1),sy2+Math.sin(sa2)*(sunR+1));ctx.lineTo(sx2+Math.cos(sa2)*(sunR+2.5),sy2+Math.sin(sa2)*(sunR+2.5));ctx.stroke();}
+  var sg2=ctx.createRadialGradient(sx2-1,sy2-1,0,sx2,sy2,sunR);
+  sg2.addColorStop(0,"rgba(255,240,180,0.85)");sg2.addColorStop(1,"rgba(200,100,20,0.5)");
+  ctx.fillStyle=sg2;ctx.beginPath();ctx.arc(sx2,sy2,sunR,0,6.28);ctx.fill();
+  ctx.font="10px system-ui,sans-serif";
+  ctx.fillStyle="rgba(255,180,60,0.45)";
+  ctx.fillText("mass",barX+14,row2Y);
+
+  // mass bar
+  var mbarX=barX+44,mbarW=barW-30,mbarH=3;
+  ctx.fillStyle="rgba(255,255,255,0.06)";
+  ctx.beginPath();ctx.roundRect(mbarX,row2Y-mbarH/2,mbarW,mbarH,1);ctx.fill();
+  if(massPct>0){
+    var hc=massPct<0.5?l3([255,160,40],[255,60,20],massPct*2):l3([255,60,20],[180,0,80],(massPct-0.5)*2);
+    if(massPct>0.65){ctx.shadowColor=rgba(hc,0.6);ctx.shadowBlur=4;}
+    ctx.fillStyle=rgba(hc,0.75+massPct*0.2);
+    ctx.beginPath();ctx.roundRect(mbarX,row2Y-mbarH/2,massPct*mbarW,mbarH,1);ctx.fill();
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+  }
+  // black hole icon — white outline style so it's visible on dark bg
+  ctx.textBaseline="middle";
+  var bhVisible=massPct>0.8;
+  if(bhVisible){
+    ctx.font="bold 11px system-ui,sans-serif";
+    ctx.fillStyle="rgba(220,100,255,0.95)";
+    ctx.shadowColor="rgba(180,60,255,0.8)";ctx.shadowBlur=6;
+    ctx.fillText("⬤",mbarX+mbarW+4,row2Y); // filled circle
+    ctx.shadowBlur=0;ctx.shadowColor="transparent";
+  } else {
+    // just a faint ring — visible but subtle
+    ctx.strokeStyle="rgba(255,255,255,0.22)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(mbarX+mbarW+9,row2Y,5,0,6.28);ctx.stroke();
+    // tiny black center
+    ctx.fillStyle="rgba(255,255,255,0.08)";
+    ctx.beginPath();ctx.arc(mbarX+mbarW+9,row2Y,3,0,6.28);ctx.fill();
+  }
+
+
+
+  ctx.restore();
+}
+
+
+
+
+function drawOffscreenIndicators(){
+  var margin=24;
+  for(var i=0;i<orbs.length;i++){
+    var o=orbs[i];if(o.dead||o.suctioning)continue;
+    // convert world position to screen space (accounts for zoom + pan)
+    var sx=(o.x-W/2)*zoom+W/2-camX;
+    var sy=(o.y-H/2)*zoom+H/2-camY;
+    var buf=o.baseR*zoom+10;
+    if(sx>=-buf&&sx<=W+buf&&sy>=-buf&&sy<=H+buf)continue;
+    // angle from screen centre toward planet's screen position
+    var ang=Math.atan2(sy-H/2,sx-W/2);
+    var tx=Math.cos(ang),ty=Math.sin(ang);
+    // intersect ray with screen edge rectangle
+    var tX=(tx>0?W-margin:margin);
+    var tY=(ty>0?H-margin:margin);
+    var tAtX=(tx!==0)?(tX-W/2)/tx:Infinity;
+    var tAtY=(ty!==0)?(tY-H/2)/ty:Infinity;
+    var t2=Math.min(Math.abs(tAtX),Math.abs(tAtY));
+    var px2=Math.max(margin,Math.min(W-margin,W/2+tx*t2));
+    var py2=Math.max(margin,Math.min(H-margin,H/2+ty*t2));
+    // opacity — fades in as planet moves further off screen
+    var offDist=Math.max(0,Math.max(Math.abs(sx-W/2)-W/2,Math.abs(sy-H/2)-H/2));
+    var alpha=Math.min(0.80,0.35+Math.min(1,offDist/120)*0.45);
+    var c=stabCol(o.instability);
+    ctx.save();ctx.translate(px2,py2);ctx.rotate(ang);
+    // arrowhead only — solid filled chevron pointing toward planet
+    ctx.fillStyle=rgba(c,alpha);
+    ctx.beginPath();
+    ctx.moveTo(12,0);ctx.lineTo(2,-6);ctx.lineTo(5,0);ctx.lineTo(2,6);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawHomeBtn(){
+  if(Math.abs(camX)<8&&Math.abs(camY)<8)return;
+  var hx=28,hy=H-36;
+  var hPulse=0.5+Math.sin(Date.now()*0.003)*0.3;
+  ctx.save();
+  ctx.fillStyle="rgba(20,30,60,"+(0.55+hPulse*0.1)+")";
+  ctx.strokeStyle="rgba(180,220,255,"+(0.35+hPulse*0.25)+")";
+  ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(hx-20,hy-16,40,32,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle="rgba(180,220,255,"+(0.65+hPulse*0.2)+")";
+  ctx.font="16px system-ui,sans-serif";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("⌂",hx,hy);
+  ctx.restore();
+}
+function drawVoidToast(dt){
+  if(_voidToast<=0)return;
+  _voidToast=Math.max(0,_voidToast-dt);
+  var _ta=Math.min(1,_voidToast/350)*Math.min(1,(2800-_voidToast)/200);
+  if(_ta<0.01)return;
+  ctx.save();
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.font="bold 14px system-ui,sans-serif";
+  ctx.shadowColor="rgba(0,0,0,0.6)";ctx.shadowBlur=8;
+  ctx.fillStyle="rgba(255,80,70,"+_ta+")";
+  ctx.fillText("−10  lost to the void",W/2,H*0.18);
+  ctx.shadowBlur=0;ctx.restore();
+}
+function drawVignette(){
+  // soft darkening toward screen edges — sense of boundary without a hard line
+  var vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
+  vg.addColorStop(0,"rgba(0,0,0,0)");
+  vg.addColorStop(0.6,"rgba(0,0,0,0.04)");
+  vg.addColorStop(1,"rgba(0,0,0,0.35)");
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+}
+
+function drawMenuBtn(){
+  // sits top-right, below logo (logo ~y:0-44)
+  var bw=44,bh=44,br=12;
+  var bx=W-14-bw,by=52;
+  ctx.fillStyle="rgba(255,255,255,0.08)";
+  ctx.strokeStyle="rgba(255,255,255,0.12)";ctx.lineWidth=0.7;
+  ctx.beginPath();ctx.roundRect(bx,by,bw,bh,br);ctx.fill();ctx.stroke();
+  // pause icon — two vertical bars
+  var barW=7,barH=20,gap=8;
+  var totalBarW=barW*2+gap;
+  var barX=bx+(bw-totalBarW)/2,barY=by+(bh-barH)/2;
+  ctx.fillStyle="rgba(255,255,255,0.55)";
+  ctx.beginPath();ctx.roundRect(barX,barY,barW,barH,2);ctx.fill();
+  ctx.beginPath();ctx.roundRect(barX+barW+gap,barY,barW,barH,2);ctx.fill();
+}
+
+function drawLogo(){
+  ctx.save();
+  ctx.textAlign="right";ctx.textBaseline="top";
+  ctx.font="bold 17px system-ui,sans-serif";
+  // measure to position pieces
+  var itW=ctx.measureText("it").width;
+  var orbW=ctx.measureText("ORB").width;
+  var tx=W-14,ty=18;
+
+  // icon sits left of text
+  var cx=tx-orbW-itW-12,cy=ty+9;
+  var s=0.62;
+
+  // rings
+  ctx.strokeStyle="rgba(30,70,110,0.65)";ctx.lineWidth=0.8;
+  ctx.beginPath();ctx.arc(cx,cy,23*s,0,6.28);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,15*s,0,6.28);ctx.stroke();
+  ctx.strokeStyle="rgba(40,80,130,0.65)";
+  ctx.beginPath();ctx.arc(cx,cy,8*s,0,6.28);ctx.stroke();
+
+  // sun
+  var sg=ctx.createRadialGradient(cx-1.5*s,cy-1.5*s,0,cx,cy,8*s);
+  sg.addColorStop(0,"rgba(255,248,220,0.95)");sg.addColorStop(0.4,"rgba(255,200,80,0.9)");sg.addColorStop(1,"rgba(255,140,30,0.7)");
+  ctx.fillStyle=sg;ctx.beginPath();ctx.arc(cx,cy,4.5*s,0,6.28);ctx.fill();
+
+  // planets
+  ctx.fillStyle="rgba(50,150,255,0.85)";ctx.beginPath();ctx.arc(cx,cy-8.5*s,2.8*s,0,6.28);ctx.fill();
+  ctx.fillStyle="rgba(30,200,120,0.85)";ctx.beginPath();ctx.arc(cx+10*s,cy-10*s,3.2*s,0,6.28);ctx.fill();
+  ctx.fillStyle="rgba(180,60,255,0.85)";ctx.beginPath();ctx.arc(cx-14*s,cy-17*s,2.5*s,0,6.28);ctx.fill();
+
+  // ORBit text — draw right-aligned so 'it' ends at tx
+  ctx.fillStyle="rgba(200,80,255,0.85)";
+  ctx.fillText("it",tx,ty);
+  ctx.fillStyle="rgba(255,255,255,0.72)";
+  ctx.fillText("ORB",tx-itW,ty);
+
+  // version stamp — tiny, below logo
+  ctx.font="9px system-ui,sans-serif";ctx.textAlign="right";ctx.textBaseline="top";
+  ctx.fillStyle="rgba(255,255,255,0.18)";
+  ctx.fillText("v"+ORBIT_VERSION,W-14,ty+20);
+
+  ctx.restore();
+}
+
+
+/* === MENU / PAUSE === */
+function showTab(name){
+  ['game','howto','scores'].forEach(function(t){
+    var el=document.getElementById('tab-'+t);
+    if(el)el.classList.toggle('active',t===name);
+  });
+  document.querySelectorAll('.tab-btn').forEach(function(b){
+    var map={'game':'game','howto':'tips','scores':'scores'};
+    b.classList.toggle('active',b.textContent.trim()===map[name]);
+  });
+  if(name==='scores')renderLeaderboard();
+}
+
+/* === LOADING SCREEN === */
+function runLoadingBar(){
+  var bar=document.getElementById('loading-bar');
+  var overlay=document.getElementById('loading-overlay');
+  if(!bar||!overlay)return;
+  var pct=0;
+  var iv=setInterval(function(){
+    pct+=Math.random()*18+4;
+    if(pct>92)pct=92;
+    bar.style.width=pct+'%';
+  },120);
+  window.addEventListener('load',function(){
+    clearInterval(iv);
+    bar.style.width='100%';
+    bar.style.transition='width 0.3s ease';
+    setTimeout(function(){
+      overlay.style.opacity='0';
+      overlay.style.transition='opacity 0.4s ease';
+      setTimeout(function(){overlay.style.display='none';},400);
+    },300);
+  });
+}
+runLoadingBar();
+
+
+/* === CHILL MODE === */
+var chillMode=false;
+function toggleChill(){
+  chillMode=!chillMode;
+  // reset game state when switching modes
+  score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];worldPops=[];_taughtCircle=false;_voidToast=0;
+  orbsEaten=0;sun.mass=0;sun.r=SUN_BASE_R;
+  blackHole.active=false;blackHole.t=0;blackHole.devourT=0;blackHole.done=false;blackHole.flash=0;
+  orbs=[];rings=[];launcher.launchNum=0;launcher.launchWindow=0;launcher.cooldown=0;
+  sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;sun.homeX=W/2;sun.homeY=H/2;
+  initOrbs();queueNext();
+  resumeGame();
+}
+
+/* === ANALYTICS HELPERS === */
+var _sessionStart=Date.now();
+var _orbsLaunched=0;
+function fbLog(name,params){
+  try{if(window._fbReady&&window._fbLogEvent)window._fbLogEvent(window._fbAnalytics,name,params||{});}catch(e){}
+}
+
+/* === LEADERBOARD === */
+var SCORE_KEY='orbit_scores_v1';
+var NAME_KEY='orbit_last_name';
+var _currentBoard='global'; // 'global' or 'local'
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function getLocalScores(){try{return JSON.parse(localStorage.getItem(SCORE_KEY)||'[]');}catch(e){return[];}}
+function saveLocalScores(arr){try{localStorage.setItem(SCORE_KEY,JSON.stringify(arr));}catch(e){}}
+
+function switchBoard(which){
+  _currentBoard=which;
+  var gb=document.getElementById('lb-global-btn');
+  var lb=document.getElementById('lb-local-btn');
+  var lf=document.getElementById('lb-local-footer');
+  if(gb&&lb){
+    gb.style.background=which==='global'?'rgba(100,200,255,0.12)':'rgba(255,255,255,0.04)';
+    gb.style.borderColor=which==='global'?'rgba(100,200,255,0.3)':'rgba(255,255,255,0.08)';
+    gb.style.color=which==='global'?'rgba(100,200,255,0.9)':'rgba(255,255,255,0.35)';
+    lb.style.background=which==='local'?'rgba(100,200,255,0.12)':'rgba(255,255,255,0.04)';
+    lb.style.borderColor=which==='local'?'rgba(100,200,255,0.3)':'rgba(255,255,255,0.08)';
+    lb.style.color=which==='local'?'rgba(100,200,255,0.9)':'rgba(255,255,255,0.35)';
+  }
+  if(lf)lf.style.display=which==='local'?'block':'none';
+  renderLeaderboard();
+}
+
+function renderScoreRows(scores){
+  var list=document.getElementById('leaderboard-list');
+  var empty=document.getElementById('leaderboard-empty');
+  if(!list||!empty)return;
+  if(!scores||scores.length===0){
+    list.innerHTML='';list.style.display='none';empty.style.display='block';return;
+  }
+  empty.style.display='none';list.style.display='flex';
+  list.innerHTML=scores.map(function(s,i){
+    var medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'<span style="font-size:12px;color:rgba(255,255,255,0.3);">'+(i+1)+'</span>';
+    var col=s.score<0?'rgba(255,100,80,0.85)':'rgba(255,255,255,0.88)';
+    var date=s.date?'<div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:1px;">'+escHtml(s.date)+'</div>':'';
+    return '<div style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 14px;">'
+      +'<div style="font-size:16px;width:24px;text-align:center;">'+medal+'</div>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.78);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+escHtml(s.name)+'</div>'+date+'</div>'
+      +'<div style="font-size:18px;font-weight:700;font-family:monospace;color:'+col+';">'+s.score+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function setLbStatus(msg){var el=document.getElementById('lb-status');if(el)el.textContent=msg;}
+
+async function renderLeaderboard(){
+  if(_currentBoard==='local'){
+    renderScoreRows(getLocalScores());
+    setLbStatus('scores on this device');
+    return;
+  }
+  // global
+  setLbStatus('loading...');
+  document.getElementById('leaderboard-list').innerHTML='';
+  document.getElementById('leaderboard-empty').style.display='none';
+  try{
+    if(!window._fbReady)throw new Error('Firebase not ready');
+    var q=window._fbQuery(
+      window._fbCollection(window._fbDb,'scores'),
+      window._fbOrderBy('score','desc'),
+      window._fbLimit(20)
+    );
+    var snap=await window._fbGetDocs(q);
+    var scores=[];
+    snap.forEach(function(doc){
+      var d=doc.data();
+      scores.push({name:d.name,score:d.score,date:d.date||''});
+    });
+    renderScoreRows(scores);
+    setLbStatus(scores.length+' players worldwide');
+  }catch(err){
+    setLbStatus('offline — showing local scores');
+    renderScoreRows(getLocalScores());
+  }
+}
+
+function clearScores(){
+  if(confirm('Clear your local scores?')){saveLocalScores([]);renderLeaderboard();}
+}
+
+/* === END GAME FLOW === */
+function endGame(){
+  paused=true;
+  document.getElementById('menu-overlay').style.display='none';
+  var overlay=document.getElementById('endgame-overlay');
+  overlay.style.display='flex';
+  document.getElementById('endgame-score').textContent=score;
+  document.getElementById('endgame-score').style.color=score<0?'rgba(255,100,80,0.9)':'white';
+  var lastName=localStorage.getItem(NAME_KEY)||'';
+  var inp=document.getElementById('name-input');
+  inp.value=lastName;
+  // select all so player can type immediately to replace
+  setTimeout(function(){inp.focus();inp.select();},100);
+  // analytics
+  var sessionSec=Math.round((Date.now()-_sessionStart)/1000);
+  fbLog('game_end',{score:score,orbs_eaten:orbsEaten,orbs_launched:_orbsLaunched,session_seconds:sessionSec});
+}
+
+async function saveScore(){
+  var name=document.getElementById('name-input').value.trim()||'Anonymous';
+  localStorage.setItem(NAME_KEY,name);
+  var dateStr=new Date().toLocaleDateString();
+  // save locally
+  var localScores=getLocalScores();
+  localScores.push({name:name,score:score,date:dateStr});
+  localScores.sort(function(a,b){return b.score-a.score;});
+  saveLocalScores(localScores.slice(0,20));
+  // save to Firebase
+  try{
+    if(window._fbReady){
+      await window._fbAddDoc(window._fbCollection(window._fbDb,'scores'),{
+        name:name,score:score,date:dateStr,
+        ts:window._fbServerTimestamp()
+      });
+    }
+  }catch(err){console.warn('Score save failed:',err);}
+  document.getElementById('endgame-overlay').style.display='none';
+  resetGame();
+}
+
+function skipSave(){
+  document.getElementById('endgame-overlay').style.display='none';
+  resetGame();
+}
+function showMenu(){
+  paused=true;
+  document.getElementById('menu-overlay').style.display='flex';
+  showTab('game');
+}
+function resumeGame(){
+  paused=false;
+  document.getElementById('menu-overlay').style.display='none';
+  lastT=0;
+}
+function resetGame(){
+  paused=false;
+  fbLog('game_reset',{score:score});
+  _orbsLaunched=0;
+  document.getElementById('menu-overlay').style.display='none';
+  score=0;scoreOrbit=0;scorePenalty=0;scorePop=0;scorePopY=0;penaltyPops=[];worldPops=[];_taughtCircle=false;_voidToast=0;orbsEaten=0;
+  orbs=[];rings=[];launcherIdleTime=0;launcherIdleRings=[];
+  well.active=false;well.depth=0;well.holdTime=0;well.trail=[];launcher.pulling=false;launcher.cooldown=0;launcher.launchNum=0;launcher.launchWindow=0;
+  camX=0;camY=0;camHoming=false;_pan2.active=false;
+  sun.x=W/2;sun.y=H/2;sun.vx=0;sun.vy=0;
+  sun.homeX=W/2;sun.homeY=H/2;
+  sun.r=SUN_BASE_R;sun.mass=0;
+  blackHole.active=false;blackHole.t=0;blackHole.done=false;
+  initOrbs();queueNext();
+  sunPulsed=false;lastT=0;
+  // show intro again
+  document.getElementById('intro-overlay').style.display='flex';
+  paused=true;
+}
+function startGame(chill){
+  chillMode=!!chill;
+  var btn=document.getElementById('chill-btn');
+  if(btn){btn.textContent=chillMode?'🌊  Chill mode: On':'🌊  Chill mode: Off';}
+  document.getElementById('intro-overlay').style.display='none';
+  paused=false;lastT=0;
+  // zoom intro — starts close, backs out to show players zoom exists
+  zoom=1.65;zoomTarget=1.0;
+  camX=0;camY=0;camHoming=false;_pan2.active=false;
+  _sessionStart=Date.now();
+  fbLog('game_start',{chill:chillMode});
+}
+
+/* === LAUNCHER IDLE HINT === */
+var launcherIdleTime=0;
+var launcherIdleRings=[];
+
+function tickLauncherIdle(dt){
+  if(launcher.pulling||launcher.cooldown>0){launcherIdleTime=0;launcherIdleRings=[];return;}
+  launcherIdleTime+=dt;
+  if(launcherIdleTime>3000){
+    // pulse a ghost arc every 1.8 seconds
+    if(launcherIdleRings.length===0||launcherIdleRings[launcherIdleRings.length-1].age>900){
+      launcherIdleRings.push({age:0,life:1});
+    }
+  }
+  for(var i=launcherIdleRings.length-1;i>=0;i--){
+    launcherIdleRings[i].age+=dt;
+    launcherIdleRings[i].life=Math.max(0,1-launcherIdleRings[i].age/1800);
+    if(launcherIdleRings[i].life<=0)launcherIdleRings.splice(i,1);
+  }
+}
+
+function drawLauncherIdleHint(){
+  var lx=launcher.x,ly=launcher.y;
+  if(launcherIdleTime<3000)return;
+  // use a slower pulse so it doesn't fight with the READY text
+  var pulse=0.5+Math.sin(launcherIdleTime*0.002)*0.5;
+
+  // pull gesture hint — line + bouncing arrow below launcher
+  // shows the downward pull motion clearly
+  var arrowBaseY=ly+PLATFORM_R+10;
+  var arrowTipY=arrowBaseY+14+pulse*12;
+  var arrowAlpha=0.35+pulse*0.4;
+
+  ctx.strokeStyle='rgba(255,200,80,'+arrowAlpha+')';
+  ctx.lineWidth=1.5;ctx.lineCap='round';
+  // stem
+  ctx.beginPath();ctx.moveTo(lx,arrowBaseY);ctx.lineTo(lx,arrowTipY);ctx.stroke();
+  // arrowhead
+  ctx.beginPath();ctx.moveTo(lx-6,arrowTipY-7);ctx.lineTo(lx,arrowTipY);ctx.lineTo(lx+6,arrowTipY-7);ctx.stroke();
+  ctx.lineCap='butt';
+
+  // "pull" label beneath arrow — only for very first launch (launchNum<=1)
+  if(launcher.launchNum<=1){
+    ctx.font="10px system-ui,sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="top";
+    ctx.fillStyle="rgba(255,200,80,"+(arrowAlpha*0.75)+")";
+    ctx.fillText("pull to launch",lx,arrowTipY+4);
+    ctx.textAlign="left";ctx.textBaseline="top";
+  }
+
+  // ripple rings expanding outward from platform
+  for(var i=0;i<launcherIdleRings.length;i++){
+    var r=launcherIdleRings[i];
+    var prog=r.age/1800,alpha2=r.life*0.25;
+    ctx.strokeStyle='rgba(255,200,80,'+alpha2+')';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(lx,ly,PLATFORM_R+4+prog*45,0,6.28);ctx.stroke();
+  }
+}
+
+var lastT=0,time=0,sunPulsed=false,paused=true;
+function frame(now){requestAnimationFrame(frame);if(paused){lastT=0;return;}if(lastT===0){lastT=now;return;}var dt=Math.min(now-lastT,40);lastT=now;time+=dt;updateBlackHole(dt);
+// decay trail point ages
+for(var _ti=well.trail.length-1;_ti>=0;_ti--){well.trail[_ti].age+=dt/800;if(well.trail[_ti].age>=1)well.trail.splice(_ti,1);}
+// well depth — builds while held, decays fast on release
+if(well.active){
+  well.holdTime=Math.min(1000,well.holdTime+dt);
+  well.depth=well.holdTime/1000; // 0-1 over 3s
+} else {
+  well.depth=Math.max(0,well.depth-dt/400); // fades in 0.4s
+  if(well.depth<=0)well.holdTime=0;
+}
+if(launcher.cooldown>0){
+  launcher.cooldown-=dt;
+} else if(!launcher.pulling){
+  // cooldown done — tick the launch window
+  launcher.launchWindow+=dt;
+  if(!chillMode&&launcher.launchWindow>=launcher.launchWindowMax){
+    autoLaunch();
+  }
+}
+tickLauncherIdle(dt);if(!sunPulsed&&time>1000){sunPulsed=true;for(var _i=0;_i<3;_i++){(function(delay){setTimeout(function(){addRing(sun.x,sun.y,1.5+delay*0.5);},delay*400);}(_i));}}_frameN++;ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.fillStyle="#030308";ctx.fillRect(0,0,W,H);
+// smooth zoom toward target
+zoom+=(zoomTarget-zoom)*0.1;
+if(Math.abs(zoom-zoomTarget)<0.001)zoom=zoomTarget;
+
+// ── BACKGROUND — fixed screen space, never zooms ──
+drawNebula(time);drawGalaxies(time);drawStars(time);
+
+// ── SCREEN SHAKE ──
+if(scrShake.mag>0.1){scrShake.mag*=0.75;scrShake.x=(Math.random()-0.5)*scrShake.mag*2;scrShake.y=(Math.random()-0.5)*scrShake.mag*2;}else{scrShake.mag=0;scrShake.x=0;scrShake.y=0;}
+// ── PAN UPDATE ──
+if(camHoming){camX*=0.84;camY*=0.84;if(Math.abs(camX)<0.5&&Math.abs(camY)<0.5){camX=0;camY=0;camHoming=false;}}
+// ── GAME WORLD (zoomed + panned) ──
+ctx.save();
+ctx.translate(W/2-~~camX+scrShake.x,H/2-~~camY+scrShake.y);
+ctx.scale(zoom,zoom);
+ctx.translate(-W/2,-H/2);
+stepW();drawGrid(time);
+var _bndFx=Math.abs(camX)/CAM_MAX_X,_bndFy=Math.abs(camY)/CAM_MAX_Y;
+var _bndPan=Math.max(0,Math.max(_bndFx,_bndFy)-0.20)/0.80;
+var _bndZoom=Math.max(0,(0.90-zoom)/0.35);
+var _bndA=Math.min(1,Math.max(_bndPan,_bndZoom))*0.80;
+if(_bndA>0.01){
+  ctx.save();
+  var _bndLW=1.8+_bndA*1.4;
+  ctx.strokeStyle="rgba(255,70,70,"+_bndA+")";
+  ctx.lineWidth=_bndLW;
+  ctx.setLineDash([14,9]);
+  ctx.shadowColor="rgba(255,60,60,0.5)";
+  ctx.shadowBlur=6+_bndA*8;
+  ctx.beginPath();ctx.arc(W/2,H/2,BND_R,0,6.2832);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+updateSun(dt);drawSun(time);
+for(var i=0;i<orbs.length;i++)drawTrail(orbs[i]);
+for(var i=rings.length-1;i>=0;i--){var r=rings[i];r.rad+=r.spd*dt*0.028;r.life=Math.max(0,1-r.rad/r.mx);if(r.life<=0){rings.splice(i,1);continue;}ctx.strokeStyle=rgba(stabCol(0.05),r.life*0.22);ctx.lineWidth=0.7*r.life;ctx.beginPath();ctx.arc(r.x,r.y,r.rad,0,6.28);ctx.stroke();}
+updateScore(dt);applyPuck();applyG();collide();
+for(var i=0;i<orbs.length;i++){updateOrb(orbs[i],dt);drawOrb(orbs[i]);}
+for(var i=0;i<orbs.length;i++)drawLeaderLine(orbs[i]);
+if(blackHole.flash>0){blackHole.flash-=0.06;ctx.fillStyle="rgba(255,220,100,"+Math.max(0,blackHole.flash)+")";ctx.fillRect(0,0,W,H);}
+drawPuck();
+for(var _wi=worldPops.length-1;_wi>=0;_wi--){
+  var _wp=worldPops[_wi];
+  _wp.y-=_wp.vy*dt;_wp.life-=dt;
+  if(_wp.life<=0){worldPops.splice(_wi,1);continue;}
+  var _wa=Math.min(1,_wp.life/250)*Math.min(1,(1600-_wp.life)/180);
+  if(_wa>0.01){
+    ctx.save();ctx.font="bold 11px system-ui,sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.shadowColor="rgba("+_wp.r+","+_wp.g+","+_wp.b+","+(_wa*0.7)+")";ctx.shadowBlur=8;
+    ctx.fillStyle="rgba("+_wp.r+","+_wp.g+","+_wp.b+","+_wa+")";
+    ctx.fillText(_wp.text,_wp.x,_wp.y);ctx.shadowBlur=0;ctx.restore();
+  }
+}
+// ── BOUNDARY FADE — pitch black outside the fabric edge ──
+var _bEdge=ctx.createRadialGradient(sun.x,sun.y,BND_R*0.80,sun.x,sun.y,BND_R+80);
+_bEdge.addColorStop(0,"rgba(3,3,8,0)");
+_bEdge.addColorStop(1,"rgba(3,3,8,1)");
+ctx.fillStyle=_bEdge;
+ctx.fillRect(sun.x-(BND_R+200),sun.y-(BND_R+200),(BND_R+200)*2,(BND_R+200)*2);
+ctx.restore(); // ── END GAME WORLD ──
+
+// ── UI (fixed, not zoomed) ──
+drawVignette();
+drawHomeBtn();
+drawLauncherIdleHint();
+if(!blackHole.active&&!blackHole.done){drawLauncher(time);}
+drawLauncherHandle(launcher.x,launcher.y);
+drawOffscreenIndicators();
+drawScore(time);
+drawVoidToast(dt);
+if(!_taughtCircle&&time>4000&&!blackHole.active){
+  var _np=0.3+Math.sin(Date.now()*0.0018)*0.18;
+  ctx.font="12px system-ui,sans-serif";ctx.textAlign="center";ctx.textBaseline="top";
+  ctx.fillStyle="rgba(200,155,255,"+_np+")";
+  ctx.fillText("○  aim for perfect circles  \xd710",W/2,18);
+}
+drawMenuBtn();
+drawLogo();
+// game over text
+if(blackHole.active&&blackHole.t>1000){
+  var goAlpha=Math.min(1,(blackHole.t-1000)/800);
+  ctx.save();ctx.globalAlpha=goAlpha;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='bold '+~~(W*0.1)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(255,80,80,0.9)';
+  ctx.shadowColor='rgba(255,50,50,0.6)';ctx.shadowBlur=20;
+  ctx.fillText('GAME OVER',W/2,H*0.38);ctx.shadowBlur=0;
+  ctx.font='bold '+~~(W*0.06)+'px system-ui,sans-serif';
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  ctx.fillText(score,W/2,H*0.38+~~(W*0.12));
+  ctx.restore();
+}}
+resize();requestAnimationFrame(frame);
+// expose menu functions to global scope for onclick handlers
+window.startGame=startGame;
+window.resumeGame=resumeGame;
+window.resetGame=resetGame;
+window.showTab=showTab;
+window.showMenu=showMenu;
+window.endGame=endGame;
+window.saveScore=saveScore;
+window.skipSave=skipSave;
+window.clearScores=clearScores;
+window.switchBoard=switchBoard;
+window.toggleChill=toggleChill;
+})();
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ORBit">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#030308">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
+<title>ORBit</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#030308;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-sun{position:static;top:auto;left:auto}
+
+
+</style>
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCqMxJV7_hh8AHaSuYUi7QR16apt0QhPiE",
+      authDomain: "orbit-23921.firebaseapp.com",
+      projectId: "orbit-23921",
+      storageBucket: "orbit-23921.firebasestorage.app",
+      messagingSenderId: "680718517274",
+      appId: "1:680718517274:web:103918e8727a348c837da3",
+      measurementId: "G-6VBNF6YDJZ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+
+    // expose to game
+    window._fbAnalytics = analytics;
+    window._fbLogEvent = logEvent;
+    window._fbDb = db;
+    window._fbCollection = collection;
+    window._fbAddDoc = addDoc;
+    window._fbQuery = query;
+    window._fbOrderBy = orderBy;
+    window._fbLimit = limit;
+    window._fbGetDocs = getDocs;
+    window._fbServerTimestamp = serverTimestamp;
+    window._fbReady = true;
+
+    // log page view
+    logEvent(analytics, 'page_view', { page_title: 'ORBit' });
+  </script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<style>
+.orbit-overlay{position:fixed;inset:0;z-index:30;background:rgba(3,3,8,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,sans-serif;color:rgba(255,255,255,0.88);}
+.orbit-panel{position:fixed;top:0;right:0;bottom:0;width:min(340px,100vw);z-index:20;background:rgba(6,8,20,0.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-left:1px solid rgba(255,255,255,0.06);font-family:system-ui,sans-serif;display:flex;flex-direction:column;}
+.tab-bar{display:flex;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;}
+.tab-btn{flex:1;padding:12px 4px;background:none;border:none;color:rgba(255,255,255,0.35);font-size:11px;letter-spacing:2px;text-transform:lowercase;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:color 0.2s;}
+.tab-btn.active{color:rgba(255,255,255,0.85);border-bottom:2px solid rgba(100,200,255,0.6);}
+.tab-content{flex:1;overflow-y:auto;padding:20px 18px;display:none;-webkit-overflow-scrolling:touch;}
+.tab-content.active{display:block;}
+.menu-action{display:block;width:100%;margin-bottom:12px;padding:17px 18px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:14px;color:rgba(255,255,255,0.85);font-size:16px;font-family:inherit;cursor:pointer;text-align:left;transition:background 0.15s;}
+.menu-action:hover{background:rgba(255,255,255,0.1);}
+.menu-action.danger{color:rgba(255,130,100,0.85);}
+.how-section{margin-bottom:22px;}
+.how-section h3{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:10px;}
+.how-card{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;}
+.how-icon{font-size:20px;flex-shrink:0;margin-top:1px;}
+.how-card h4{font-size:14px;font-weight:600;margin-bottom:3px;}
+.how-card p{font-size:13px;color:rgba(255,255,255,0.45);line-height:1.5;}
+.score-pills{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.score-pill{background:rgba(255,255,255,0.04);border-radius:10px;padding:10px 12px;}
+.score-pill .val{font-size:22px;font-weight:700;font-family:monospace;line-height:1;}
+.score-pill .lbl{font-size:11px;color:rgba(255,255,255,0.3);margin-top:3px;}
+.tip-row{display:flex;gap:10px;align-items:baseline;font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:8px;}
+.tip-dot{width:4px;height:4px;border-radius:50%;background:#cc44ff;flex-shrink:0;margin-top:6px;}
+.install-steps{display:flex;flex-direction:column;gap:7px;}
+.install-step{display:flex;gap:10px;font-size:13px;color:rgba(255,255,255,0.55);}
+.step-num{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;color:rgba(255,255,255,0.3);}
+.badge{display:inline-block;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:4px;font-weight:600;margin-bottom:10px;}
+.ios{background:rgba(51,153,255,0.15);color:#3399ff;}
+.android{background:rgba(34,204,136,0.15);color:#22cc88;}
+</style>
+
+<!-- LOADING SCREEN -->
+<div id="loading-overlay" style="position:fixed;inset:0;z-index:40;background:#030308;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,sans-serif;">
+  <svg viewBox="0 0 80 80" width="60" height="60" style="margin-bottom:20px;">
+    <circle cx="40" cy="40" r="37" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+    <circle cx="40" cy="40" r="25" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+    <circle cx="40" cy="40" r="13" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
+    <defs><radialGradient id="lsg" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="40%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+    <circle cx="40" cy="40" r="7" fill="url(#lsg)"/>
+    <circle cx="40" cy="27" r="4" fill="#3399ff"/>
+    <circle cx="56" cy="26" r="5" fill="#22cc88"/>
+    <circle cx="22" cy="15" r="3.5" fill="#cc44ff"/>
+  </svg>
+  <div style="font-size:28px;font-weight:800;letter-spacing:-0.5px;color:white;margin-bottom:6px;">ORB<span style="color:#cc44ff;">it</span></div>
+  <div style="font-size:11px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.2);margin-bottom:32px;">gravity sandbox</div>
+  <!-- progress bar -->
+  <div style="width:160px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;">
+    <div id="loading-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#3399ff,#cc44ff);border-radius:2px;transition:width 0.2s ease;"></div>
+  </div>
+</div>
+
+<!-- INTRO OVERLAY -->
+<div id="intro-overlay" class="orbit-overlay" style="display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="text-align:center;max-width:320px;padding:24px 24px;width:100%;flex-shrink:0;">
+    <svg viewBox="0 0 80 80" width="60" height="60" style="margin-bottom:12px;">
+      <circle cx="40" cy="40" r="37" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+      <circle cx="40" cy="40" r="25" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+      <circle cx="40" cy="40" r="13" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
+      <defs><radialGradient id="intro-sun-g" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="40%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+      <circle cx="40" cy="40" r="7" fill="url(#intro-sun-g)"/>
+      <circle cx="40" cy="27" r="4" fill="#3399ff"/>
+      <circle cx="56" cy="26" r="5" fill="#22cc88"/>
+      <circle cx="22" cy="15" r="3.5" fill="#cc44ff"/>
+    </svg>
+    <div style="font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:4px;">ORB<span style="color:#cc44ff;">it</span></div>
+    <div style="font-size:10px;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:20px;">gravity sandbox</div>
+    <p style="font-size:14px;color:rgba(255,255,255,0.55);line-height:1.6;margin-bottom:20px;">Keep planets in stable orbit. The more blue orbits you maintain, the faster your score climbs. But the sun grows every time it feeds — fill its mass bar and it collapses into a black hole.</p>
+
+    <!-- Mode selection -->
+    <div style="display:flex;gap:10px;margin-bottom:24px;">
+      <button onclick="startGame(false)" style="flex:1;padding:16px 8px 12px;background:linear-gradient(145deg,rgba(51,153,255,0.18),rgba(180,60,255,0.18));border:1px solid rgba(255,255,255,0.15);border-radius:16px;color:white;font-family:inherit;cursor:pointer;transition:border-color 0.2s;">
+        <svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 6px;">
+  <circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+  <circle cx="24" cy="24" r="14" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <defs><radialGradient id="sbg" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="50%" stop-color="#ffcc55"/><stop offset="100%" stop-color="#ff8820"/></radialGradient></defs>
+  <circle cx="24" cy="24" r="5" fill="url(#sbg)"/>
+  <circle cx="24" cy="10" r="3" fill="#3399ff" opacity="0.9"/>
+  <circle cx="35" cy="32" r="3.5" fill="#22cc88" opacity="0.9"/>
+  <circle cx="11" cy="29" r="2.5" fill="#cc44ff" opacity="0.9"/>
+  <rect x="8" y="40" width="32" height="3" rx="1.5" fill="rgba(255,255,255,0.1)"/>
+  <rect x="8" y="40" width="20" height="3" rx="1.5" fill="rgba(100,200,255,0.6)"/>
+</svg>
+        <div style="font-size:14px;font-weight:700;margin-bottom:2px;">ORBit</div>
+        <div style="font-size:11px;opacity:0.55;letter-spacing:1px;">score &amp; strategy</div>
+      </button>
+      <button onclick="startGame(true)" style="flex:1;padding:16px 8px 12px;background:rgba(100,220,255,0.06);border:1px solid rgba(100,220,255,0.2);border-radius:16px;color:rgba(100,220,255,0.9);font-family:inherit;cursor:pointer;transition:border-color 0.2s;">
+        <svg viewBox="0 0 48 48" width="36" height="36" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 6px;">
+  <defs>
+    <radialGradient id="cbg" cx="38%" cy="34%" r="65%"><stop offset="0%" stop-color="#fff8e0"/><stop offset="50%" stop-color="#ffdd88"/><stop offset="100%" stop-color="#ff9922"/></radialGradient>
+  </defs>
+  <!-- gentle wave lines -->
+  <path d="M4 20 Q12 14 20 20 Q28 26 36 20 Q42 16 44 18" fill="none" stroke="rgba(100,200,255,0.25)" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M4 28 Q12 22 20 28 Q28 34 36 28 Q42 24 44 26" fill="none" stroke="rgba(100,200,255,0.18)" stroke-width="1" stroke-linecap="round"/>
+  <!-- small sun -->
+  <circle cx="14" cy="24" r="5" fill="url(#cbg)" opacity="0.9"/>
+  <!-- single planet drifting lazily -->
+  <circle cx="36" cy="18" r="4" fill="#3399ff" opacity="0.85"/>
+  <!-- faint orbit trail -->
+  <path d="M24 30 Q30 18 36 18" fill="none" stroke="rgba(51,153,255,0.3)" stroke-width="1" stroke-dasharray="2,3"/>
+</svg>
+        <div style="font-size:14px;font-weight:700;margin-bottom:2px;">Chill</div>
+        <div style="font-size:11px;opacity:0.55;letter-spacing:1px;color:rgba(100,220,255,0.6);">pure physics</div>
+      </button>
+    </div>
+
+    <!-- Animated hint cards -->
+    <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:16px;">
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;">
+        <canvas id="hint-launch" width="240" height="80" style="display:block;width:240px;height:80px;max-width:100%;"></canvas>
+        <div style="padding:8px 14px 12px;font-size:13px;color:rgba(255,255,255,0.6);"><strong style="color:rgba(255,255,255,0.85);">Pull the launcher</strong> — aim and release to fire</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;">
+        <canvas id="hint-well" width="240" height="80" style="display:block;width:240px;height:80px;max-width:100%;"></canvas>
+        <div style="padding:8px 14px 12px;font-size:13px;color:rgba(255,255,255,0.6);"><strong style="color:rgba(255,255,255,0.85);">Touch &amp; hold anywhere</strong> to create a gravity well — redirects nearby planets</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;">
+        <canvas id="hint-sun" width="240" height="80" style="display:block;width:240px;height:80px;max-width:100%;"></canvas>
+        <div style="padding:8px 14px 12px;font-size:13px;color:rgba(255,255,255,0.6);"><strong style="color:rgba(255,160,40,0.95);">Watch the mass bar</strong> — fill it and the sun becomes a black hole</div>
+      </div>
+    </div>
+
+    <script>
+    (function(){
+      var ht=0;
+      function hei(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+      var hc1=document.getElementById('hint-launch'),hx1=hc1&&hc1.getContext('2d');
+      var hc2=document.getElementById('hint-well'),hx2=hc2&&hc2.getContext('2d');
+      var hc3=document.getElementById('hint-sun'),hx3=hc3&&hc3.getContext('2d');
+
+      // ── 1. LAUNCHER ──
+      function drawHint1(t){
+        if(!hx1)return;
+        hx1.clearRect(0,0,240,80);
+        hx1.globalAlpha=1;hx1.shadowBlur=0;hx1.lineCap='butt';hx1.lineJoin='miter';
+        var ph=(t%2800)/2800;
+        var lx=165,ly=60;
+        // platform
+        hx1.fillStyle='rgba(10,12,28,0.9)';hx1.beginPath();hx1.arc(lx,ly,7,0,6.28);hx1.fill();
+        hx1.strokeStyle='rgba(180,220,255,0.5)';hx1.lineWidth=1.2;hx1.beginPath();hx1.arc(lx,ly,7,0,6.28);hx1.stroke();
+        if(ph<0.42){
+          // pull to the RIGHT (planet goes right, so launch goes left)
+          var sw=hei(ph/0.42);
+          var ppx=lx+sw*26, ppy=ly+sw*8; // pulls down-right
+          hx1.strokeStyle='rgba(100,200,255,0.7)';hx1.lineWidth=1.5;hx1.lineCap='round';
+          hx1.beginPath();hx1.moveTo(lx,ly);hx1.lineTo(ppx,ppy);hx1.stroke();
+          hx1.lineCap='butt';
+          // faint trajectory pointing upper-left (launch direction)
+          hx1.strokeStyle='rgba(100,200,255,0.16)';hx1.lineWidth=1;
+          hx1.beginPath();hx1.moveTo(lx,ly);hx1.lineTo(lx-85,ly-25);hx1.stroke();
+          hx1.fillStyle='#4499ff';hx1.beginPath();hx1.arc(ppx,ppy,4.5,0,6.28);hx1.fill();
+        } else if(ph<0.88){
+          // planet launches upper-left (opposite of pull direction)
+          var fp3=hei((ph-0.42)/0.46);
+          var ox=lx-fp3*145;
+          var oy3=ly-fp3*32+fp3*fp3*18;
+          hx1.strokeStyle='rgba(100,200,255,'+(0.2+fp3*0.35)+')';hx1.lineWidth=1.5;hx1.lineCap='round';
+          hx1.beginPath();hx1.moveTo(lx,ly);
+          for(var ti=1;ti<=10;ti++){
+            var tf=fp3*(1-ti*0.09);
+            hx1.lineTo(lx-tf*145,ly-tf*32+tf*tf*18);
+          }
+          hx1.stroke();hx1.lineCap='butt';
+          if(ox>-10){hx1.fillStyle='#4499ff';hx1.beginPath();hx1.arc(ox,oy3,4.5,0,6.28);hx1.fill();}
+        }
+      }
+
+      // ── 2. GRAVITY WELL ──
+      function drawHint2(t){
+        if(!hx2)return;
+        hx2.clearRect(0,0,240,80);
+        hx2.globalAlpha=1;hx2.shadowBlur=0;
+        var ph=(t%3600)/3600;
+        // finger appears below the straight-line trajectory
+        var wfx=130,wfy=55; // well: in front of and below planet path
+        var pty=22; // planet travels at y=22
+
+        // planet position along a gently curving path
+        // straight at first, then bends downward as well pulls it
+        var ptx,ptcury;
+        if(ph<0.35){
+          // straight section — planet moving right
+          ptx=15+(ph/0.35)*115; ptcury=pty; // linear — constant speed
+        } else {
+          // well active — path curves downward toward well
+          var wp=(ph-0.35)/0.65; // linear — no easing
+          ptx=130+wp*90; // continues rightward
+          // y gently bends down toward well then levels off
+          ptcury=pty+wp*wp*22;
+        }
+
+        // draw trail — yellow while straight, shifts blue as it bends
+        var trailColor=ph<0.35?'rgba(255,200,60,0.45)':'rgba(100,200,255,0.45)';
+        hx2.strokeStyle=trailColor;hx2.lineWidth=1.3;hx2.lineCap='round';
+        hx2.beginPath();
+        // sample a few trail points behind current position
+        for(var ti2=8;ti2>=0;ti2--){
+          var tph=ph-ti2*0.028;
+          if(tph<0) continue;
+          var tpx,tpy;
+          if(tph<0.35){ tpx=15+(tph/0.35)*115; tpy=pty; }
+          else{ var twp=(tph-0.35)/0.65; tpx=130+twp*90; tpy=pty+twp*twp*22; }
+          if(ti2===8||tpx<ptx-80) hx2.moveTo(tpx,tpy);
+          else hx2.lineTo(tpx,tpy);
+        }
+        hx2.lineTo(ptx,ptcury);
+        hx2.stroke();hx2.lineCap='butt';
+        // planet dot
+        hx2.fillStyle=ph<0.35?'#ddaa33':'#4499ff';
+        hx2.beginPath();hx2.arc(ptx,ptcury,4.5,0,6.28);hx2.fill();
+
+        // well + finger — appears at phase 0.3, below the trajectory line
+        if(ph>0.3){
+          var dep2=Math.min(1,hei((ph-0.3)/0.18));
+          var wr=Math.max(1,12+dep2*10);
+          var wg=hx2.createRadialGradient(wfx,wfy,1,wfx,wfy,wr+12);
+          wg.addColorStop(0,'rgba(200,100,255,'+(dep2*0.12)+')');wg.addColorStop(1,'rgba(180,60,255,0)');
+          hx2.fillStyle=wg;hx2.beginPath();hx2.arc(wfx,wfy,wr+12,0,6.28);hx2.fill();
+          hx2.strokeStyle='rgba(200,120,255,'+(0.15+dep2*0.45)+')';hx2.lineWidth=1;
+          hx2.beginPath();hx2.arc(wfx,wfy,wr,0,6.28);hx2.stroke();
+          hx2.fillStyle='rgba(240,190,255,'+(dep2*0.8)+')';
+          hx2.beginPath();hx2.arc(wfx,wfy,2+dep2*2,0,6.28);hx2.fill();
+          // finger below well
+          hx2.strokeStyle='rgba(255,255,255,'+(0.18+dep2*0.25)+')';hx2.lineWidth=1;
+          hx2.beginPath();hx2.arc(wfx,wfy+17,5,0,6.28);hx2.stroke();
+          hx2.fillStyle='rgba(255,255,255,'+(0.25+dep2*0.3)+')';
+          hx2.beginPath();hx2.arc(wfx,wfy+17,2,0,6.28);hx2.fill();
+        }
+      }
+
+      // ── 3. SUN MASS ──
+      function drawHint3(t){
+        if(!hx3)return;
+        hx3.clearRect(0,0,240,80);
+        hx3.globalAlpha=1;hx3.shadowBlur=0;hx3.shadowColor='transparent';
+        var ph=(t%5000)/5000;
+        var scx=120,scy=32,bx=20,by=64,bw=180,bh=5;
+        // 3 planets arrive at phases 0.05-0.18, 0.28-0.41, 0.51-0.64
+        var pdata=[
+          {s:0.05,e:0.18,fx:18,fy:14,col:'#4499ff'},
+          {s:0.28,e:0.41,fx:222,fy:18,col:'#22cc88'},
+          {s:0.51,e:0.64,fx:25,fy:58,col:'#cc44ff'}
+        ];
+        var mf=0;
+        for(var ii=0;ii<3;ii++){
+          if(ph>=pdata[ii].e) mf=(ii+1)/3;
+        }
+        var bhph=ph>0.74?hei((ph-0.74)/0.26):0;
+        var sr=Math.max(5,8+mf*9);
+        if(bhph<0.05){
+          // sun
+          var mr=~~(255),mg2=~~(220-mf*140),mb=~~(80+mf*175);
+          var sg2=hx3.createRadialGradient(scx-2,scy-2,1,scx,scy,sr);
+          sg2.addColorStop(0,'rgba(255,248,224,0.98)');
+          sg2.addColorStop(0.5,'rgba('+mr+','+mg2+','+mb+',0.95)');
+          sg2.addColorStop(1,'rgba('+~~(mr*0.4)+',20,20,0.9)');
+          hx3.fillStyle=sg2;hx3.beginPath();hx3.arc(scx,scy,sr,0,6.28);hx3.fill();
+          // flying planets
+          for(var jj=0;jj<3;jj++){
+            var pd=pdata[jj];
+            if(ph<pd.s||ph>pd.e)continue;
+            var pp2=hei((ph-pd.s)/(pd.e-pd.s));
+            var plx=pd.fx+(scx-pd.fx)*pp2,ply=pd.fy+(scy-pd.fy)*pp2;
+            hx3.globalAlpha=Math.max(0,1-pp2*0.6);
+            hx3.fillStyle=pd.col;hx3.beginPath();hx3.arc(plx,ply,3.5*(1-pp2*0.4),0,6.28);hx3.fill();
+            hx3.globalAlpha=1;
+          }
+        } else {
+          // black hole
+          var bhr=7+bhph*13;
+          for(var ri2=0;ri2<3;ri2++){
+            hx3.save();hx3.translate(scx,scy);hx3.scale(1,0.14+ri2*0.06);
+            hx3.strokeStyle='rgba('+(ri2<2?'255,180,80':'200,100,255')+','+(0.38-ri2*0.08)+')';
+            hx3.lineWidth=1.8-ri2*0.3;hx3.beginPath();hx3.arc(0,0,bhr*(1.5+ri2*0.5),0,6.28);hx3.stroke();
+            hx3.restore();
+          }
+          hx3.fillStyle='#000';hx3.beginPath();hx3.arc(scx,scy,bhr,0,6.28);hx3.fill();
+          hx3.strokeStyle='rgba(255,220,150,'+(0.45+bhph*0.4)+')';hx3.lineWidth=1.5;
+          hx3.beginPath();hx3.arc(scx,scy,bhr*1.1,0,6.28);hx3.stroke();
+          mf=1;
+        }
+        // bar
+        hx3.fillStyle='rgba(255,255,255,0.07)';hx3.fillRect(bx,by,bw,bh);
+        if(mf>0){
+          var bc=bhph>0.05?'rgba(200,80,255,':mf<0.6?'rgba(255,160,40,':'rgba(255,'+(~~(80-mf*50))+',20,';
+          hx3.fillStyle=bc+'0.85)';hx3.fillRect(bx,by,mf*bw,bh);
+        }
+        hx3.fillStyle=mf>0.88?'rgba(220,100,255,0.95)':'rgba(255,255,255,0.2)';
+        hx3.beginPath();hx3.arc(bx+bw+11,by+bh/2,4,0,6.28);hx3.fill();
+      }
+
+      function animHints(){
+        ht+=16;
+        var intro=document.getElementById('intro-overlay');
+        if(!intro||intro.style.display==='none')return;
+        try{drawHint1(ht);}catch(e){}
+        try{drawHint2(ht);}catch(e){}
+        try{drawHint3(ht);}catch(e){}
+        requestAnimationFrame(animHints);
+      }
+      requestAnimationFrame(animHints);
+    })();
+    </script>
+  </div>
+</div>
+
+<!-- END GAME OVERLAY -->
+<div id="endgame-overlay" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(3,3,8,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,sans-serif;align-items:center;justify-content:center;">
+  <div style="text-align:center;max-width:300px;padding:0 24px;width:100%;">
+    <div style="font-size:13px;letter-spacing:4px;text-transform:lowercase;color:rgba(255,255,255,0.25);margin-bottom:8px;">game over</div>
+    <div id="endgame-score" style="font-size:64px;font-weight:800;color:white;line-height:1;margin-bottom:4px;">0</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.3);margin-bottom:28px;">points</div>
+    <div style="margin-bottom:20px;">
+      <input id="name-input" type="text" maxlength="16" placeholder="your name" style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(255,255,255,0.88);font-size:16px;font-family:inherit;outline:none;box-sizing:border-box;text-align:center;"/>
+    </div>
+    <button onclick="saveScore()" style="display:block;width:100%;padding:14px;background:linear-gradient(135deg,#3399ff,#cc44ff);border:none;border-radius:12px;color:white;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;margin-bottom:10px;">Save Score</button>
+    <button onclick="skipSave()" style="display:block;width:100%;padding:10px;background:none;border:none;color:rgba(255,255,255,0.25);font-size:14px;font-family:inherit;cursor:pointer;">Skip</button>
+  </div>
+</div>
+
+<!-- MENU PANEL (slides in from right) -->
+<div id="menu-overlay" class="orbit-panel" style="display:none;">
+  <div style="padding:14px 18px 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:9px;">
+      <svg viewBox="0 0 48 48" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="22" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+        <circle cx="24" cy="24" r="15" fill="none" stroke="#1a3a5a" stroke-width="1.2"/>
+        <circle cx="24" cy="24" r="8" fill="none" stroke="#2a4a6a" stroke-width="1.2"/>
+        <defs>
+          <radialGradient id="mng" cx="38%" cy="34%" r="65%">
+            <stop offset="0%" stop-color="#fff8e0"/>
+            <stop offset="40%" stop-color="#ffcc55"/>
+            <stop offset="100%" stop-color="#ff8820"/>
+          </radialGradient>
+        </defs>
+        <circle cx="24" cy="24" r="5" fill="url(#mng)"/>
+        <circle cx="24" cy="16" r="2.5" fill="#3399ff"/>
+        <circle cx="33" cy="15" r="3" fill="#22cc88"/>
+        <circle cx="13" cy="9" r="2" fill="#cc44ff"/>
+      </svg>
+      <div style="font-size:18px;font-weight:700;letter-spacing:-0.5px;color:rgba(255,255,255,0.92);">ORB<span style="color:#cc44ff;">it</span></div>
+    </div>
+    <button onclick="resumeGame()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:22px;cursor:pointer;padding:4px 8px;font-family:inherit;">✕</button>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('game')">game</button>
+    <button class="tab-btn" onclick="showTab('howto')">tips</button>
+    <button class="tab-btn" onclick="showTab('scores')">scores</button>
+  </div>
+  <!-- GAME TAB -->
+  <div id="tab-game" class="tab-content active">
+    <button class="menu-action" onclick="resumeGame()" style="display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 20 20" width="16" height="16"><polygon points="4,2 16,10 4,18" fill="rgba(255,255,255,0.7)"/></svg>Resume
+    </button>
+    <button class="menu-action" onclick="endGame()" style="display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 20 20" width="16" height="16">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+        <line x1="10" y1="5" x2="10" y2="10" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="10" y1="10" x2="14" y2="13" stroke="rgba(100,200,255,0.8)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>End &amp; Save Score
+    </button>
+    <button class="menu-action" onclick="resetGame()" style="display:flex;align-items:center;gap:10px;">
+      <svg viewBox="0 0 20 20" width="16" height="16">
+        <path d="M15 4 A7 7 0 1 0 17 10" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+        <polyline points="14,1 15,4 18,3" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>Reset game
+    </button>
+  </div>
+  <!-- TIPS TAB -->
+  <div id="tab-howto" class="tab-content">
+    <p style="font-size:13px;color:rgba(255,255,255,0.45);line-height:1.7;margin-bottom:20px;">Launch planets into orbit around the sun. Good orbits score points — but <strong style="color:rgba(210,100,255,0.95);">perfect circles score ×10, and they stack.</strong> Two circles = ×20. Three = ×30. That's where massive scores come from. The sun grows each time it absorbs a planet — fill its mass bar and it collapses into a black hole. Everything follows one rule: mass attracts mass.</p>
+    <div class="how-section">
+      <h3>Scoring</h3>
+      <div class="score-pills">
+        <div class="score-pill"><div class="val" style="color:#3399ff;">+n</div><div class="lbl">stable planets score per bar fill</div></div>
+        <div class="score-pill"><div class="val" style="color:#dd55ff;">×10</div><div class="lbl">per perfect circle — stacks!</div></div>
+        <div class="score-pill"><div class="val" style="color:#22cc88;">faster</div><div class="lbl">more planets = bar fills faster</div></div>
+        <div class="score-pill"><div class="val" style="color:#cc44ff;">3+</div><div class="lbl">need 3 planets to start scoring</div></div>
+        <div class="score-pill"><div class="val" style="color:#ff5555;">−10</div><div class="lbl">per planet the sun absorbs</div></div>
+      </div>
+    </div>
+    <div class="how-section">
+      <h3>Controls</h3>
+      <div class="how-card"><div class="how-icon">🚀</div><div><h4>Launcher</h4><p>Pull back in any direction and release. The trajectory line shows where it will go. Use the handle on the right edge to slide the launcher up or down — closer to the sun means faster, tighter orbits. You have 10 seconds to launch before it auto-fires toward the sun.</p></div></div>
+      <div class="how-card"><div class="how-icon">✌️</div><div><h4>Pan &amp; Zoom</h4><p>Use two fingers to explore the solar system. Drag two fingers together to pan the camera in any direction. Pinch to zoom in or out. Double-tap to snap back to center and reset zoom. The ⌂ button appears in the bottom-left whenever you've panned away from home.</p></div></div>
+      <div class="how-card"><div class="how-icon">🌀</div><div><h4>Gravity well</h4><p>Touch and hold anywhere to warp spacetime. The longer you hold, the deeper the well and the stronger the pull. Trail your finger to carve a path planets will follow. A brief hold nudges gently — great for coaxing an orbit rounder.</p></div></div>
+      <div class="how-card"><div class="how-icon">◉</div><div><h4>Orbit lines</h4><p>The leader line ahead of each planet shows its future path. <span style="color:#5599ff;">Blue</span> = stable orbit. <span style="color:#ff88dd;">Pink</span> = nearly a perfect circle — don't disturb it! <span style="color:#ddcc30;">Yellow</span> = drifting. <span style="color:#e04030;">Red</span> = heading into the sun or out of bounds — act fast. The trail behind each planet turns from grey to blue as the orbit rounds out. When it glows <span style="color:#88eeff;">cyan</span> and closes the loop with the leader line, the orbit is locked and scoring ×10.</p></div></div>
+      <div class="how-card"><div class="how-icon">☀️</div><div><h4>The sun</h4><p>Pulls everything toward it. Planets that get too close are absorbed — each one costs <strong style="color:rgba(255,100,80,0.9);">−10 points</strong> and grows the sun's mass. Don't feed it.</p></div></div>
+      <div class="how-card"><div class="how-icon">🌌</div><div><h4>The void</h4><p>There's a boundary to the solar system. Drift too far from the sun and a planet is lost to the void — <strong style="color:rgba(255,100,80,0.9);">−10 points</strong>, no recovery. Keep your orbits tight. The leader line turns <span style="color:#e04030;">red</span> if a planet is heading out.</p></div></div>
+      <div class="how-card"><div class="how-icon">⚫</div><div><h4>Black hole</h4><p>Watch the sun mass bar in the score panel. When it fills, the sun collapses into a black hole and devours every planet — each one costs −10. That's game over.</p></div></div>
+    </div>
+    <div class="how-section">
+      <h3>Tips</h3>
+      <div class="tip-row"><div class="tip-dot" style="background:rgba(210,80,255,0.7);"></div><span><strong style="color:rgba(210,80,255,0.95);">Perfect circles are where the big scores are.</strong> Watch the trail behind each planet — it starts grey and slowly turns <span style="color:#88aaff;">blue</span> as the orbit rounds out. When the leader line ahead turns <span style="color:#ff88dd;">pink</span>, you're almost there. When the trail glows <span style="color:#88eeff;">cyan</span> and connects to the leader line, it's locked — that orbit is scoring <strong style="color:rgba(210,80,255,0.95);">×10.</strong></span></div>
+      <div class="tip-row"><div class="tip-dot" style="background:rgba(210,80,255,0.7);"></div><span><strong style="color:rgba(210,80,255,0.95);">Circles stack.</strong> Two perfect circles = ×20 on every score tick. Three = ×30. The multiplier shows below your score. This is how players reach massive scores — not from having lots of planets, but from having round ones.</span></div>
+      <div class="tip-row"><div class="tip-dot" style="background:rgba(210,80,255,0.7);"></div><span>To nudge an orbit rounder, touch and hold <em>briefly</em> just ahead of the planet's path — the gravity well pulls it toward a tighter arc. Go gentle: too much and you'll break the orbit.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Watch the trajectory line before releasing — a medium pull aimed sideways usually lands a stable orbit.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Slide the launcher handle up to launch closer to the sun — tighter, faster orbits.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Hold your finger in front of an incoming red planet — a deep well can redirect it to safety.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>Smaller planets add less mass to the sun. Play small to delay the black hole.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>When the mass bar glows red, the black hole is close — end your game and save your score before it's too late.</span></div>
+      <div class="tip-row"><div class="tip-dot"></div><span>In Chill mode there's no cooldown, no scoring, and no black hole. Pure physics.</span></div>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:24px 0 20px;"></div>
+    <div class="how-section">
+      <h3>Install</h3>
+      <p style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:16px;">Add ORBit to your home screen for a full-screen experience with no browser chrome.</p>
+      <span class="badge ios">iOS · Safari</span>
+      <div class="install-steps">
+        <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Safari</strong> on iPhone or iPad</span></div>
+        <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>Share button</strong> — square with arrow pointing up</span></div>
+        <div class="install-step"><div class="step-num">3</div><span>Scroll down and tap <strong>Add to Home Screen</strong></span></div>
+        <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong> — ORBit opens full-screen like a native app</span></div>
+      </div>
+      <div style="margin-top:16px;">
+        <span class="badge android">Android · Chrome</span>
+        <div class="install-steps">
+          <div class="install-step"><div class="step-num">1</div><span>Open this page in <strong>Chrome</strong></span></div>
+          <div class="install-step"><div class="step-num">2</div><span>Tap the <strong>three-dot menu</strong> top right</span></div>
+          <div class="install-step"><div class="step-num">3</div><span>Tap <strong>Add to Home screen</strong></span></div>
+          <div class="install-step"><div class="step-num">4</div><span>Tap <strong>Add</strong></span></div>
+        </div>
+      </div>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,0.06);margin:24px 0 20px;"></div>
+    <div style="padding:14px 16px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(100,200,255,0.2);border-radius:0 8px 8px 0;margin-bottom:8px;">
+      <p style="font-size:13px;color:rgba(255,255,255,0.55);line-height:1.6;margin:0;font-style:italic;">"I was sick and dying and Orbit saved my life."</p>
+      <p style="font-size:11px;color:rgba(255,255,255,0.25);margin:6px 0 0;letter-spacing:0.5px;">— Evan Brammer</p>
+    </div>
+  </div>
+  <!-- SCORES TAB -->
+  <div id="tab-scores" class="tab-content">
+    <!-- toggle -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button id="lb-global-btn" onclick="switchBoard('global')" style="flex:1;padding:8px;background:rgba(100,200,255,0.12);border:1px solid rgba(100,200,255,0.3);border-radius:8px;color:rgba(100,200,255,0.9);font-size:12px;font-family:inherit;cursor:pointer;letter-spacing:1px;">🌍 Global</button>
+      <button id="lb-local-btn" onclick="switchBoard('local')" style="flex:1;padding:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:rgba(255,255,255,0.35);font-size:12px;font-family:inherit;cursor:pointer;letter-spacing:1px;">📱 Mine</button>
+    </div>
+    <div id="lb-status" style="font-size:11px;color:rgba(255,255,255,0.2);text-align:center;margin-bottom:10px;min-height:16px;"></div>
+    <div id="leaderboard-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    <div id="leaderboard-empty" style="display:none;text-align:center;padding:32px 0;font-size:13px;color:rgba(255,255,255,0.2);">no scores yet</div>
+    <div id="lb-local-footer" style="display:none;text-align:right;margin-top:12px;">
+      <button onclick="clearScores()" style="background:none;border:none;color:rgba(255,255,255,0.15);font-size:11px;font-family:inherit;cursor:pointer;">clear my scores</button>
+    </div>
+  </div>
+</div>
+<a id="logo-link" href="#" onclick="showMenu();return false;" style="position:fixed;top:0;right:0;width:150px;height:48px;z-index:10;display:block;-webkit-tap-highlight-color:transparent;"></a>
+
+<script>
+(function(){
+"use strict";
 var ORBIT_VERSION="0.6.0"; // Dispatch bumps this on every session. Format: major.session.hotfix
 var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
 var W=0,H=0,TS=0.05,GM=4.0; // base value

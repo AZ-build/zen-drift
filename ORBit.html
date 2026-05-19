@@ -546,9 +546,19 @@ function gWarp(px,py){var dx=sun.x-px,dy=sun.y-py,d=Math.sqrt(dx*dx+dy*dy);if(d<
 function drawGrid(t){
   var sp=20; // slightly tighter grid
 
-  // ── HORIZONTAL LINES — extended for zoom out ──
-  var gMinX=-Math.round(W*0.6),gMaxX=Math.round(W*1.6);
-  var gMinY=-Math.round(H*0.6),gMaxY=Math.round(H*1.6);
+  // ── GRID BOUNDS — centered on sun, based on BND_R so they cover the full
+  // game world regardless of screen aspect ratio. W/H-relative bounds left
+  // portrait phones with a narrow horizontal range and invisible edges.
+  var _gR=Math.round(BND_R*1.15+100); // just outside the boundary circle
+  var gMinX=Math.round(sun.x-_gR),gMaxX=Math.round(sun.x+_gR);
+  var gMinY=Math.round(sun.y-_gR),gMaxY=Math.round(sun.y+_gR);
+
+  // ── SUN PROXIMITY REFERENCE — use BND_R so falloff is world-size aware,
+  // not screen-size dependent. Old max(W,H)*0.42 gave sP=0 at screen edges
+  // on portrait phones, making the fabric nearly invisible there.
+  var _sPRef=BND_R*0.70;
+
+  // ── HORIZONTAL LINES ──
   for(var py=gMinY;py<gMaxY;py+=sp){
     ctx.beginPath();var s=false,wA=0,totalWarp=0;
     for(var px=gMinX;px<gMaxX;px+=6){
@@ -559,12 +569,10 @@ function drawGrid(t){
       else ctx.lineTo(px+g.x,py+h*5+g.y);
     }
     var dS=Math.abs(py-sun.y);
-    var sP=Math.max(0,1-dS/(Math.max(W,H)*0.42)); // sun proximity
-    var avgWarp=Math.min(1,totalWarp/(W/4)*0.015);  // how much this line is warped
-    // color: near sun=warm, warped by well=purple tint, default=cool blue-grey
-    var alpha=Math.min(0.65,0.07+sP*0.22+wA*0.12+avgWarp*0.15); // more visible away from sun
+    var sP=Math.max(0,1-dS/_sPRef); // sun proximity
+    var avgWarp=Math.min(1,totalWarp/(W/4)*0.015);
+    var alpha=Math.min(0.65,0.13+sP*0.22+wA*0.12+avgWarp*0.15);
     var lw=0.5+sP*0.9+avgWarp*0.4;
-    // tint: purple where well warps, orange-teal near sun
     if(well.depth>0.1&&avgWarp>0.1){
       ctx.strokeStyle="rgba(180,100,255,"+alpha*well.depth+")";
     } else {
@@ -573,8 +581,8 @@ function drawGrid(t){
     ctx.lineWidth=lw;ctx.stroke();
 
     // bright accent line every 4th line — gives depth/layering
-    if(Math.round((py+1000)/sp)%4===0&&sP>0.1){
-      ctx.strokeStyle="rgba(100,180,220,"+(sP*0.12)+")";
+    if(Math.round((py+1000)/sp)%4===0&&sP>0.05){
+      ctx.strokeStyle="rgba(100,180,220,"+(Math.max(sP,0.08)*0.12)+")";
       ctx.lineWidth=0.3;ctx.stroke();
     }
   }
@@ -590,9 +598,9 @@ function drawGrid(t){
       else ctx.lineTo(px+h*5+g.x,py2+g.y);
     }
     var dS=Math.abs(px-sun.x);
-    var sP=Math.max(0,1-dS/(Math.max(W,H)*0.42));
+    var sP=Math.max(0,1-dS/_sPRef);
     var avgWarp=Math.min(1,totalWarp/(H/4)*0.015);
-    var alpha=Math.min(0.5,0.06+sP*0.16+wA*0.08+avgWarp*0.12);
+    var alpha=Math.min(0.5,0.10+sP*0.16+wA*0.08+avgWarp*0.12);
     var lw=0.4+sP*0.7+avgWarp*0.3;
     if(well.depth>0.1&&avgWarp>0.1){
       ctx.strokeStyle="rgba(180,100,255,"+alpha*well.depth+")";

@@ -507,7 +507,7 @@ canvas{display:block;position:fixed;top:0;left:0}#hint-launch,#hint-well,#hint-s
 <script>
 (function(){
 "use strict";
-var ORBIT_VERSION="0.6.2"; // Dispatch bumps this on every session. Format: major.session.hotfix
+var ORBIT_VERSION="0.6.3"; // Dispatch bumps this on every session. Format: major.session.hotfix
 var canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
 var W=0,H=0,TS=0.05,GM=4.0; // base value
 var zoom=1.0,zoomTarget=1.0,_pinchDist0=0,_pinching=false;
@@ -1373,7 +1373,7 @@ function initOrbs(){
     orbs.push(makeOrb(sun.x+Math.cos(ang)*c.d,sun.y+Math.sin(ang)*c.d,-Math.sin(ang)*v,Math.cos(ang)*v,c.r,false,c.pt));
   }
 }
-function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:im?0.001:(Math.random()<0.12?-1:1)*(0.001+Math.random()*0.002),glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,eccSmooth:1,isCircular:false,ptype:PTYPES[pt],craterSeeds:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,axialTilt:im?0:(Math.random()<0.15?1.2+Math.random()*0.35:Math.random()*0.35),colorVar:im?[0,0,0]:[(Math.random()-0.5)*30,(Math.random()-0.5)*25,(Math.random()-0.5)*25],idleTime:Math.random()*3000,suctioning:false,suctionT:0,_leaderCache:null,_leaderFrame:-99,_trailAcc:0,_orbPSmooth:undefined,_circLatch:0};}
+function makeOrb(x,y,vx,vy,r,im,pt){return{x:x,y:y,vx:vx,vy:vy,r:r,baseR:r,mass:r*r*r*0.0005,angle:Math.random()*6.28,spin:im?0.001:(Math.random()<0.12?-1:1)*(0.001+Math.random()*0.002),glow:0,squishX:0,squishY:0,squishVX:0,squishVY:0,trail:[],isMoon:im,dead:false,respawnTimer:0,instability:0,eccSmooth:1,isCircular:false,ptype:PTYPES[pt],craterSeeds:[Math.random()*6.28,Math.random()*6.28,Math.random()*6.28,Math.random()*6.28],ringTilt:0.15+Math.random()*0.25,axialTilt:im?0:(Math.random()<0.15?1.2+Math.random()*0.35:Math.random()*0.35),colorVar:im?[0,0,0]:[(Math.random()-0.5)*30,(Math.random()-0.5)*25,(Math.random()-0.5)*25],idleTime:Math.random()*3000,suctioning:false,suctionT:0,_leaderCache:null,_leaderFrame:-99,_trailAcc:0,_orbPSmooth:undefined,_circLatch:0,_circActivatedDN:0};}
 function respawnOrb(o){var sa=Math.min(W,H),d=sa*(0.1+Math.random()*0.3)+35,ang=Math.random()*6.28,v=orbV(o.baseR,d);o.x=sun.x+Math.cos(ang)*d;o.y=sun.y+Math.sin(ang)*d;o.vx=-Math.sin(ang)*v;o.vy=Math.cos(ang)*v;o.dead=false;o.respawnTimer=0;o.glow=0.5;o.trail=[];o.instability=0;o.suctioning=false;o.suctionT=0;o.r=o.baseR;}
 function updateOrb(o,dt){if(o.dead)return;o.angle+=o.spin*dt;var dx=sun.x-o.x,dy=sun.y-o.y,dd=Math.sqrt(dx*dx+dy*dy);// 4 sub-steps for accurate orbital integration (no force cap)
 var subDt=dt/4;
@@ -1454,13 +1454,14 @@ var _orbPInst=6.283*Math.sqrt(dd*dd*dd/(getGM()*TS));
 o._orbPSmooth=o._orbPSmooth!==undefined?o._orbPSmooth*0.92+_orbPInst*0.08:_orbPInst;
 var _orbP=o._orbPSmooth;
 // Loop detection: does the leader line (future path) cross the stored trail (past path)?
-// Three fixes vs prior approach:
-//   1. Trail Y is shifted by wAt()*4 when drawn — apply same offset here so we match the visual
-//   2. Dense trail sampling (250 pts) so gaps between checked points are smaller than touchR
-//   3. Latch mechanism — 1 frame of touch latches isCircular for ~2s (no smoothing lag)
+// Gate: oldest trail point must be >= 75% of one orbital period old — prevents firing on a
+// fresh launch before the planet has actually completed a loop, and also kills the false
+// positive when a planet is shot straight at the sun (trail never ages enough).
 var _closeT=0;
 var _wDet=4; // must match _wS in drawTrail
-if(o._leaderPts&&o._leaderPts.length>10&&o.trail.length>=20){
+var _trailAge=o.trail.length>0?(time-o.trail[0].t):0;
+var _ageGate=o._orbPSmooth?o._orbPSmooth*0.75:Infinity;
+if(o._leaderPts&&o._leaderPts.length>10&&o.trail.length>=20&&_trailAge>=_ageGate){
   var _lpts=o._leaderPts;
   var _touchR=Math.max(24,o.r*2.5+8);
   var _touchR2=_touchR*_touchR;
@@ -1489,9 +1490,10 @@ var _mustExit=o.suctioning||o._leaderHit||!(o._circLatch>0)||o.instability>0.90;
 o.isCircular=o.isCircular?!_mustExit:_canEnter;
 if(o.isCircular&&!o._wasCircular){
   if(!o._lastCircPop||time-o._lastCircPop>12000){
-    worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"PERFECT \xd710",life:1600,r:210,g:80,b:255});
+    worldPops.push({x:o.x,y:o.y-o.r-8,vy:0.02,text:"Stable Orbit \xd710",life:1600,r:210,g:80,b:255});
     o._lastCircPop=time;_taughtCircle=true;
   }
+  o._circActivatedDN=Date.now(); // for the one-time connect flash in draw
 }
 o._wasCircular=o.isCircular;
 // closeTSmooth — visual only, drives the pink leader-line color transition
@@ -1565,11 +1567,13 @@ function drawLeaderLine(o){
   var pts=o._leaderPts;
   if(pts.length<2)return;
   var pulseMult=(state==='red')?(0.55+Math.sin(Date.now()*0.01)*0.45):1;
-  var pinkPulse=(_nearCirc||_isCircActive)?(0.85+Math.sin(Date.now()*0.003)*0.15):1;
+  var pinkPulse=_nearCirc?(0.85+Math.sin(Date.now()*0.003)*0.15):1; // no pulse when circular
   var moonMult=o.isMoon?0.4:1;
+  var _lFlashAge=_isCircActive?Date.now()-(o._circActivatedDN||0):9999;
+  var _lFlashFrac=Math.max(0,1-_lFlashAge/500);
 
   ctx.save();
-  if(_isCircActive){ctx.shadowColor="rgba(200,80,255,0.5)";ctx.shadowBlur=8;}
+  if(_isCircActive){ctx.shadowColor="rgba(200,80,255,"+(0.30+_lFlashFrac*0.30)+")";ctx.shadowBlur=5+_lFlashFrac*6;}
   else if(_nearCirc&&_circFrac>0.3){ctx.shadowColor="rgba(255,90,210,"+(_circFrac*0.4)+")";ctx.shadowBlur=6*_circFrac;}
   ctx.lineWidth=0.9;
   ctx.lineCap="round";
@@ -1622,10 +1626,12 @@ function drawTrail(o){
   var _wS=4;
   ctx.lineCap="round";ctx.lineJoin="round";
   if(isCirc){
-    // persistent pink/lavender glow — orbit is locked and scoring
-    var _pp=0.40+Math.sin(Date.now()*0.003)*0.18;
+    // steady lavender — one brief brightness flash on connect, then calm
+    var _flashAge=Date.now()-(o._circActivatedDN||0);
+    var _flashFrac=Math.max(0,1-_flashAge/500); // 500ms flash on connect
+    var _pp=0.38+_flashFrac*0.30; // 0.38 steady, briefly up to 0.68 on connect
     ctx.save();
-    ctx.shadowColor="rgba(220,100,255,0.35)";ctx.shadowBlur=7;
+    ctx.shadowColor="rgba(220,100,255,"+(0.25+_flashFrac*0.25)+")";ctx.shadowBlur=5+_flashFrac*6;
     ctx.beginPath();
     var _p0=tr[si];ctx.moveTo(_p0.x,_p0.y+wAt(_p0.x,_p0.y)*_wS);
     for(var i=si+1;i<len;i++){
